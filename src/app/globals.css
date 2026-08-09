@@ -20,17 +20,19 @@
     --accent-foreground: 260 100% 27%;
     --destructive: 4 76% 40%;
     --destructive-foreground: 0 0% 100%;
-    --border: 266 15% 85%;
-    --input: 266 15% 85%;
+    --border: 262.86 28% 14.71% / 0.12;
+    --input: 262.86 28% 14.71% / 0.14;
     --ring: 252 48% 52%;
     --radius: 0.625rem;
     --ambient-primary: rgba(46, 0, 139, 0.15);
     --ambient-secondary: rgba(98, 74, 191, 0.1);
+    --glass-panel-alpha: 0.64;
   }
 
   .light {
     --ambient-primary: rgba(46, 0, 139, 0.07);
     --ambient-secondary: rgba(98, 74, 191, 0.05);
+    --glass-panel-alpha: 0.72;
   }
 
   .dark {
@@ -95,7 +97,7 @@
   .glass-panel {
     border: 1px solid hsl(var(--border));
     border-radius: 1.5rem;
-    background: hsl(var(--card) / 0.64);
+    background: hsl(var(--card) / var(--glass-panel-alpha));
     box-shadow:
       0 24px 80px rgba(0, 0, 0, 0.18),
       inset 0 1px 0 rgba(255, 255, 255, 0.06);
@@ -104,7 +106,6 @@
   }
 
   html.light .glass-panel {
-    background: hsl(var(--card) / 0.72);
     box-shadow:
       0 24px 80px rgba(35, 27, 48, 0.08),
       inset 0 1px 0 rgba(255, 255, 255, 0.72);
@@ -112,7 +113,7 @@
 
   @supports not (backdrop-filter: blur(1px)) {
     .glass-panel {
-      background: hsl(var(--card) / 0.94);
+      --glass-panel-alpha: 0.94;
     }
   }
 }
