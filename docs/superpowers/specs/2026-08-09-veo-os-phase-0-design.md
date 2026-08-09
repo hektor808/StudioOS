@@ -1,7 +1,7 @@
 # VEO OS Phase 0 Design
 
 **Date:** 2026-08-09  
-**Status:** Approved for implementation planning  
+**Status:** Approved design; pending written specification review  
 **Scope:** Repository bootstrap, dependency foundation, durable architecture and design documentation, verification, commit, and push only
 
 ## 1. Objective
@@ -105,7 +105,7 @@ The design manifesto establishes these mandatory future constraints:
 
 - Main cards, sidebars, docks, and panels use frosted glass rather than solid container backgrounds.
 - Canonical dark treatment starts from `bg-white/5 backdrop-blur-2xl border border-white/10 shadow-2xl` and may be tuned by component level.
-- Parent panels use approximately 24px radii (`rounded-3xl`); interactive controls and smaller modules use approximately 16px radii (`rounded-2xl` or equivalent); compact controls and badges may be pill-shaped.
+- Parent panels use 24px radii (`rounded-3xl`); interactive controls and smaller modules use 16px radii (`rounded-2xl`); compact buttons may use `rounded-[10px]`, while icon controls, toggles, and status badges may use `rounded-full`.
 - Depth comes from blur, optical density, edge highlights, and restrained purple radiance rather than conventional heavy shadows.
 
 ### Typography
