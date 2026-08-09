@@ -14,11 +14,14 @@ type ServerClientOptions = {
     ) => void;
   };
 };
-const createServerClient = vi.fn(
-  (_url: string, _anonKey: string, _options: ServerClientOptions) => ({
-    kind: "server-client",
-  }),
-);
+type CreateServerClient = (
+  url: string,
+  anonKey: string,
+  options: ServerClientOptions,
+) => { kind: string };
+const createServerClient = vi.fn<CreateServerClient>(() => ({
+  kind: "server-client",
+}));
 
 vi.mock("next/headers", () => ({ cookies }));
 vi.mock("@supabase/ssr", () => ({ createServerClient }));
