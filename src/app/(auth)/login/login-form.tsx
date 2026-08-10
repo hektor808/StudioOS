@@ -169,7 +169,7 @@ export function LoginForm({ authenticate = login }: LoginFormProps) {
 
       {serverMessage ? (
         <p
-          className="rounded-[10px] border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="rounded-[10px] border border-destructive/30 bg-destructive-container/10 px-3 py-2 text-sm text-destructive"
           role="alert"
         >
           {serverMessage}

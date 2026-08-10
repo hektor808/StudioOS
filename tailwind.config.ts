@@ -26,6 +26,8 @@ const config: Config = {
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",
+          container: "hsl(var(--primary-container))",
+          "container-foreground": "hsl(var(--primary-container-foreground))",
         },
         secondary: {
           DEFAULT: "hsl(var(--secondary))",
@@ -34,6 +36,8 @@ const config: Config = {
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
+          container: "hsl(var(--destructive-container))",
+          "container-foreground": "hsl(var(--destructive-container-foreground))",
         },
         muted: {
           DEFAULT: "hsl(var(--muted))",

@@ -39,16 +39,16 @@ export default async function LoginPage() {
         <section className="relative flex min-h-[22rem] flex-col overflow-hidden border-b border-border p-6 pt-20 md:p-10 md:pt-24 lg:min-h-0 lg:border-b-0 lg:border-r lg:p-12">
           <div
             aria-hidden="true"
-            className="absolute -left-24 top-1/3 h-64 w-64 rounded-full bg-primary/15 blur-3xl"
+            className="absolute -left-24 top-1/3 h-64 w-64 rounded-full bg-primary-container/15 blur-3xl"
           />
           <div
             aria-hidden="true"
-            className="absolute bottom-0 right-0 h-px w-2/3 bg-gradient-to-l from-primary/50 to-transparent"
+            className="absolute bottom-0 right-0 h-px w-2/3 bg-gradient-to-l from-primary-container/50 to-transparent"
           />
 
           <div className="relative z-10">
             <div className="mb-8 flex items-center gap-3 text-[0.625rem] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              <span className="h-px w-8 bg-primary/70" />
+              <span className="h-px w-8 bg-primary-container/70" />
               VEO // PRIVATE NETWORK
             </div>
             <p className="font-heading text-sm font-medium uppercase tracking-[0.14em] text-muted-foreground">
@@ -71,11 +71,11 @@ export default async function LoginPage() {
 
               <div className="relative flex h-28 items-center justify-center gap-2 md:gap-3">
                 <div className="absolute inset-x-0 top-1/2 h-px bg-border" />
-                <div className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border border-primary/60 bg-background" />
-                <div className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border border-primary/60 bg-background" />
+                <div className="absolute left-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border border-primary-container/60 bg-background" />
+                <div className="absolute right-0 top-1/2 h-2 w-2 -translate-y-1/2 rounded-full border border-primary-container/60 bg-background" />
                 {signalBars.map((height, index) => (
                   <span
-                    className={`relative w-1.5 rounded-full bg-primary/70 shadow-[0_0_20px_hsl(var(--primary)/0.18)] md:w-2 ${height}`}
+                    className={`relative w-1.5 rounded-full bg-primary-container/70 shadow-[0_0_20px_hsl(var(--primary-container)/0.18)] md:w-2 ${height}`}
                     key={`${height}-${index}`}
                   />
                 ))}
@@ -130,7 +130,7 @@ export default async function LoginPage() {
             </div>
 
             <div className="mt-5 flex items-center gap-2 text-xs text-muted-foreground">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary/70" />
+              <span className="h-1.5 w-1.5 rounded-full bg-primary-container/70" />
               Authentication status is confirmed after sign-in.
             </div>
           </div>
