@@ -46,6 +46,7 @@ describe("LoginPage", () => {
     expect(
       screen.getByRole("button", { name: /theme/i }),
     ).toBeInTheDocument();
+    expect(mocks.redirect).not.toHaveBeenCalled();
   });
 
   it("redirects an authenticated user to the studio root", async () => {
