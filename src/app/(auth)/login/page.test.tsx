@@ -74,4 +74,12 @@ describe("LoginPage", () => {
       }),
     ).not.toBeInTheDocument();
   });
+
+  it("removes the decorative identity signal from the mobile layout flow", async () => {
+    render(await LoginPage());
+
+    expect(
+      screen.getByText("Identity signal").closest('[aria-hidden="true"]'),
+    ).toHaveClass("hidden", "md:block");
+  });
 });

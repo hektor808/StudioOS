@@ -61,7 +61,7 @@ export default async function LoginPage() {
 
           <div
             aria-hidden="true"
-            className="relative z-10 my-auto py-12 md:py-16"
+            className="relative z-10 my-auto hidden py-12 md:block md:py-16"
           >
             <div className="relative overflow-hidden rounded-2xl border border-border bg-background/20 px-5 py-6 shadow-inner md:px-7 md:py-8">
               <div className="mb-7 flex items-center justify-between text-[0.625rem] font-semibold uppercase tracking-[0.16em] text-muted-foreground">
