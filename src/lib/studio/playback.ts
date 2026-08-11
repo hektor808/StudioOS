@@ -10,8 +10,7 @@ function playbackUnavailable(): never {
   throw new Error(studioMessages.playbackUnavailable);
 }
 
-const UNSAFE_DECODED_DELIMITERS = /[\/\\?#]/;
-const ABSOLUTE_SCHEME_SEGMENT = /^[a-z][a-z\d+.-]*:$/i;
+const ABSOLUTE_SCHEME_PREFIX = /^[a-z][a-z\d+.-]*:/i;
 
 function containsControlCharacters(value: string): boolean {
   return Array.from(value).some((character) => {
@@ -23,77 +22,33 @@ function containsControlCharacters(value: string): boolean {
   });
 }
 
-function decodeObjectKeySegment(segment: string): string | null {
-  let decoded = segment;
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    let next: string;
-
-    try {
-      next = decodeURIComponent(decoded);
-    } catch {
-      return null;
-    }
-
-    if (next === "." || next === "..") {
-      return null;
-    }
-
-    if (
-      containsControlCharacters(next) ||
-      UNSAFE_DECODED_DELIMITERS.test(next)
-    ) {
-      return null;
-    }
-
-    if (next === decoded) {
-      return next;
-    }
-
-    decoded = next;
-  }
-
-  return null;
-}
-
 function getSafeRelativeObjectKey(value: string): string | null {
   if (
     value.length === 0 ||
     value.trim().length === 0 ||
     value.startsWith("/") ||
     value.includes("\\") ||
+    value.includes("%") ||
     value.includes("://") ||
     value.includes("?") ||
     value.includes("#") ||
     containsControlCharacters(value) ||
-    /^[a-z][a-z\d+.-]*:\//i.test(value)
+    ABSOLUTE_SCHEME_PREFIX.test(value)
   ) {
     return null;
   }
 
   const segments = value.split("/");
-  if (segments.some((segment) => segment.length === 0)) {
+  if (
+    segments.some(
+      (segment) =>
+        segment.length === 0 || segment === "." || segment === "..",
+    )
+  ) {
     return null;
   }
 
-  for (let index = 0; index < segments.length; index += 1) {
-    const segment = segments[index];
-    if (segment === "." || segment === "..") {
-      return null;
-    }
-
-    const decoded = decodeObjectKeySegment(segment);
-    if (
-      decoded === null ||
-      (index === 0 &&
-        segments.length > 1 &&
-        ABSOLUTE_SCHEME_SEGMENT.test(decoded))
-    ) {
-      return null;
-    }
-  }
-
-  return segments.join("/");
+  return value;
 }
 
 export async function getSignedPlaybackSource(
