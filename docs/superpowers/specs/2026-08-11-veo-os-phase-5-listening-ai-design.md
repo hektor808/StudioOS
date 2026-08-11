@@ -1,39 +1,27 @@
-# VEO OS Phase 5 External Listening & VEO AI Design
+# VEO OS Phase 5: External Listening & VEO AI Design
 
-**Status:** Approved under VEO OS full-autopilot authorization on 2026-08-11.
+**Status:** Approved for implementation after Phases 3 and 4 are integrated.
 
-**Authority:** This specification refines `VEO_OS_MASTER_PLAN.md`, `VEO_OS_DESIGN_MANIFESTO.md`, and the approved provider-aware storage architecture. The user's no-test override remains active.
+## Purpose and Scope
 
-## Objective
+Phase 5 completes VEO OS with revocable external listening links and a private, source-grounded VEO AI assistant. External listeners receive only short-lived access to approved Supabase playback objects; authenticated dashboard users manage links through existing Phase 3 track authorization. VEO AI retrieves only authorized actions and comments through pgvector and calls OpenAI only on the server.
 
-Complete VEO OS with revocable external listening links and a private, team-scoped VEO AI assistant. External listeners receive only expiring access to approved Supabase-hosted playback assets. VEO AI retrieves authorized actions and comments through pgvector and answers through a server-only OpenAI boundary.
+Included:
 
-## Scope
+- Expiring, revocable links for ready Supabase `playback` versions.
+- A public, no-dashboard listening room with a guest-name watermark and independent player.
+- Incremental embeddings of authorized actions and comments, exact cosine retrieval, durable rate limiting, and a source-grounded VEO AI chat route.
+- Completed VEO AI navigation and honest dashboard summaries.
 
-Phase 5 includes:
+Excluded:
 
-- Listening-link schema, lifecycle, token hashing, revocation, and expiration.
-- A public `/listen/[token]` route outside the dashboard route group.
-- Guest-name entry, CSS watermarking, and an independent secure player.
-- Supabase Storage signed playback/listening URLs.
-- `pgvector`, embedding records, retrieval SQL, and incremental indexing.
-- An authenticated `/veo-ai` module and `VEO_AI_Chat` client interface.
-- Server-only OpenAI orchestration, team-scoped retrieval, source references, and durable rate limiting.
-- Final dashboard navigation and honest module completion states.
-
-Phase 5 does not include:
-
-- Public search indexing of listening pages.
-- Anonymous upload or comment access.
-- A general-purpose autonomous agent or tool execution.
-- Cross-tenant retrieval.
-- Browser access to OpenAI, Supabase service-role, or provider credentials.
+- Public comments, uploads, search, or unauthenticated dashboard access.
+- Permanent public storage objects or URLs.
+- Guest authentication, DRM, analytics, external resources, client-side OpenAI, or autonomous AI actions.
 
 ## Supabase Administrative Boundary
 
-External token resolution and signed URL issuance require a narrowly isolated server-only administrative client.
-
-Create `src/lib/supabase/admin.ts` with `import "server-only"`.
+Create `src/lib/supabase/admin.ts` with `import "server-only"`. It is the narrowly scoped service-role boundary for public token resolution, five-minute signed URL issuance, and server-only index writes. `src/lib/listening/tokens.ts` and `src/lib/listening/service.ts` must also begin with `import "server-only"`.
 
 Required server-only environment variable:
 
@@ -41,23 +29,22 @@ Required server-only environment variable:
 
 Rules:
 
-- The module is imported only from server route handlers and server-only library modules.
-- The service-role key never uses a `NEXT_PUBLIC_*` prefix.
-- No admin client is imported by Client Components.
-- Admin queries are narrowly scoped and manually enforce the listening-link contract.
-- Authenticated internal operations continue to use request-scoped clients and RLS.
-- Environment values, tokens, signed URLs, provider payloads, and OpenAI content are not logged.
+- Never use a `NEXT_PUBLIC_*` name for the service-role key.
+- No Client Component, dashboard page, browser helper, or public DTO imports the admin client.
+- Authenticated dashboard reads/mutations use request-scoped `createClient()` and Phase 3 RLS/RPC boundaries.
+- The admin path manually validates every public-link condition and returns generic unavailable results for every invalid state.
+- Do not log environment values, raw tokens, token hashes, signed URLs, provider payloads, prompts, completions, retrieved content, or application errors containing them.
 
-## Listening-Link Data Model
+## Listening-Link Data and Internal Authorization
 
-Create enum `listening_link_status`: `active`, `revoked`, `expired`.
+Create enum `public.listening_link_status`: `active`, `revoked`, `expired`.
 
-### `public.listening_links`
+Create `public.listening_links` with:
 
 - `id uuid primary key default gen_random_uuid()`
 - `track_id uuid not null references public.tracks(id) on delete cascade`
 - `version_id uuid not null references public.track_versions(id) on delete cascade`
-- `token_hash text not null unique`
+- `token_hash text not null unique` (lowercase 64-character SHA-256 hexadecimal digest)
 - `label text`
 - `expires_at timestamptz not null`
 - `revoked_at timestamptz`
@@ -66,327 +53,205 @@ Create enum `listening_link_status`: `active`, `revoked`, `expired`.
 - `last_accessed_at timestamptz`
 - `access_count bigint not null default 0`
 
-Constraints:
+Expiry must be after creation. A relationship trigger and the authoritative create RPC make mismatched track/version IDs impossible.
 
-- Expiry must be after creation.
-- The selected version must belong to the selected track; enforce through an authorized creation function or validation plus a database trigger.
-- Raw tokens are never stored.
+`token_hash` is never available to authenticated dashboard reads. Enable RLS but create **no direct authenticated `SELECT` policy** on `listening_links`, and grant anonymous users no direct table access. Instead, `list_listening_link_summaries(p_track_id uuid)` is a `SECURITY DEFINER` function with `SET search_path = public, pg_temp`; it rejects a null `auth.uid()`, requires `public.can_manage_track(p_track_id)`, returns only safe summary fields, and never selects or returns `token_hash`.
 
-RLS:
+`create_listening_link(...)` and `revoke_listening_link(...)` are `SECURITY DEFINER`, use the same fixed search path, reject null authentication, use `public.can_manage_track(...)` consistently, revoke `PUBLIC` execution, and grant execution only to `authenticated`.
 
-- Authenticated users may read links for accessible tracks.
-- Track creators and admins may create/revoke links.
-- Anonymous users receive no direct table access.
+The authoritative create RPC must verify that the selected `track_versions` record:
 
-## Listening Token Lifecycle
+- belongs to `p_track_id`,
+- has `status = 'ready'`,
+- has `storage_provider = 'supabase'`,
+- has `storage_bucket = 'playback'`, and
+- has a safe private object key (nonempty; no leading slash, `..`, backslash, `://`, or control characters).
+
+The revoke RPC returns the updated safe `ListeningLinkSummary`, including revoked state, rather than `void`.
+
+Create a separate privileged `record_listening_link_access(p_link_id uuid)` function. It is `SECURITY DEFINER` with the fixed search path, does not accept a caller-controlled telemetry count, atomically executes `access_count = access_count + 1` and `last_accessed_at = now()`, returns no sensitive data, and is awaited after every successful session or refresh issuance. Revoke its execution from `PUBLIC`, `anon`, and `authenticated`; grant execution only to `service_role` for the admin-client invocation.
+
+## Token Lifecycle
 
 Creation:
 
-1. An authenticated track owner/admin selects a playback-ready Supabase version and expiry duration.
-2. Server code generates 32 cryptographically random bytes and encodes them base64url without padding.
-3. Store only `SHA-256(rawToken)` as lowercase hexadecimal.
-4. Return the raw token once in the generated share URL.
-5. The UI states that the token cannot be shown again and can be replaced by creating a new link.
+1. An authenticated user authorized by `can_manage_track` selects a ready Supabase playback version and expiry.
+2. Server-only code creates exactly 32 random bytes encoded as unpadded base64url: `randomBytes(32).toString("base64url")`.
+3. Server-only code persists only `createHash("sha256").update(rawToken).digest("hex")`.
+4. The successful create mutation returns the raw token once; the browser may construct and copy the requested share URL.
+5. Later summaries, reloads, revocations, and management pages cannot retrieve it.
 
-Resolution:
+The raw token format is exactly `/^[A-Za-z0-9_-]{43}$/`.
 
-1. Normalize and length-check the route token.
-2. Hash it with SHA-256 on the server.
-3. Look up one non-revoked, unexpired record by hash through the admin boundary.
-4. Verify the version is ready, belongs to the track, uses the approved Supabase listening/playback bucket, and has a private object path.
-5. Issue a five-minute Supabase signed URL.
-6. Increment access telemetry without blocking the response.
+The sole creation-time exception is the immediate one-time create-action handoff to the user, which is cleared after share-URL copy. After that handoff, the raw token is allowed only as input in these places:
 
-Revocation immediately prevents new signed URL issuance. Already issued URLs expire naturally within five minutes.
+- the `/listen/[token]` route parameter,
+- the `POST /api/listen/session` request body, and
+- the `POST /api/listen/refresh` request body.
+
+It is forbidden from every session/refresh or later management response, persistence layer, client storage, application/server log, analytics payload, error message, unrelated request, internal link list, or DTO. Deployments must redact `/listen/*` request targets from reverse-proxy/CDN/application access logs because the path contains the token.
+
+Revocation prevents new session or refresh URL issuance immediately. Already-issued URLs naturally expire after five minutes.
 
 ## Internal Listening-Link Management
 
 Add a listening section to `/studio/[trackId]`:
 
-- Create link form with version, label, and explicit expiry.
-- Copy share URL after creation.
-- Active/revoked/expired link list.
-- Revoke control with explicit confirmation.
-- Access count and last-accessed metadata.
-- No raw token is retrievable after the creation response.
+- Create form with ready playback version, label, and explicit expiry.
+- One-time copied share URL immediately after creation.
+- Safe active/revoked/expired summary list.
+- Explicit revoke confirmation.
+- Access count and last-accessed time.
+- No raw token, digest, storage locator, bucket, provider, or UUID in UI output.
 
-Only playback-ready Supabase assets may be published. R2 source assets must first have a playback-ready Supabase derivative registered as a version.
+Only ready `supabase`/`playback` versions with safe private keys are selectable. R2 source objects must first have a registered ready Supabase playback derivative.
 
-## Public Route
+## Public Listening Route and Session Flow
 
-Create `src/app/listen/[token]/page.tsx` outside `(dashboard)`.
+Create `src/app/listen/[token]/page.tsx` outside `(dashboard)` with dynamic uncached rendering:
 
-Route behavior:
+```ts
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const metadata: Metadata = {
+  robots: { index: false, follow: false, nocache: true },
+};
+```
 
-- `robots: { index: false, follow: false, nocache: true }` metadata.
-- Configure route headers for `/listen/:path*` in `next.config.mjs`: `Cache-Control: private, no-store, max-age=0`, `Referrer-Policy: no-referrer`, and `X-Robots-Tag: noindex, nofollow, noarchive`.
-- No dashboard shell, internal navigation, persistent `GlobalPlayer`, team profile data, comments, or database identifiers are rendered.
-- Initial server resolution returns only public-safe track/version display data and a short-lived URL.
-- Invalid, revoked, or expired links render one indistinguishable unavailable state.
-- Use dynamic rendering and no shared caching of token resolution.
-- Load no third-party scripts, images, fonts, analytics, or other subresources on the listening route; only same-origin application assets and the authorized Supabase media URL are allowed.
+`next.config.mjs` must apply these document headers to `/listen/:path*`:
 
-## Guest Session and Watermark
+- `Cache-Control: private, no-store, max-age=0`
+- `Referrer-Policy: no-referrer`
+- `X-Robots-Tag: noindex, nofollow, noarchive`
 
-Before playback, require a guest display name:
+The public page validates token availability and renders only public-safe display metadata. It **does not** embed, render, preload, sign, or receive a signed URL. Invalid, expired, revoked, missing, and incompatible-storage states render one indistinguishable unavailable state.
 
-- Trimmed length: 2–60 characters.
-- Stored only in the page's in-memory client state for this listening session.
-- Never treated as authentication.
-- Never inserted into HTML through `dangerouslySetInnerHTML`.
+The route contains no dashboard shell/navigation, persistent `GlobalPlayer`, team/profile/comment data, database IDs, analytics, remote images/fonts/scripts, or third-party resources. Only same-origin application assets and, after session creation, the authorized Supabase media request are permitted.
 
-After entry, render repeated low-contrast CSS watermark text containing the guest name. The watermark:
+### Guest session endpoint
 
-- Is visible over artwork and player surfaces.
-- Uses randomized-but-bounded layout derived locally per session.
-- Has `pointer-events: none` and is hidden from assistive technology.
-- Does not claim DRM or prevent capture; it is a deterrent and attribution cue.
+Create `POST /api/listen/session`. The client calls it only after a valid guest name is submitted. It receives the raw route token as request input, fully revalidates token hash, expiry, revocation, track/version relation, ready status, Supabase provider, `playback` bucket, and safe private key, then returns only:
 
-## External Player
+```ts
+type PublicListeningSession = {
+  trackTitle: string;
+  versionLabel: string;
+  artworkUrl: null;
+  playbackUrl: string;
+  expiresAt: string;
+};
+```
 
-Create a separate public listening player component. It must not import or mutate `useAudioStore` and must not communicate with the internal audio command bus.
+`playbackUrl` is a fresh five-minute signed URL. The endpoint awaits atomic access telemetry after successful signing. The delayed guest-name submission cannot attach a page-time stale media URL because no URL exists on the page.
 
-Responsibilities:
+The server-only session operation has this exact result contract:
 
-- Own one local `HTMLAudioElement`.
-- Play/pause, seek, elapsed/duration display, volume, and keyboard-accessible controls.
-- Refresh the signed URL before expiry while preserving position and intended playback state.
-- Reject stale refresh responses through a request generation counter.
-- Pause and show a generic link-unavailable state if refresh proves the link was revoked or expired.
-- Avoid media requests before the guest submits a valid display name.
-- Clean up timers and media state on unmount.
+```ts
+type PublicListeningSessionResult =
+  | { state: "ready"; session: PublicListeningSession }
+  | { state: "unavailable" }
+  | { state: "temporarily_unavailable" };
+```
 
-## Refresh API
+### Refresh endpoint
 
-Create `POST /api/listen/refresh`.
+Create `POST /api/listen/refresh`. It takes the raw token only as request input and repeats the complete validation/signing sequence. Its server-only operation result is:
 
-Input:
+```ts
+type PublicListeningRefreshResult =
+  | { state: "ready"; refresh: { playbackUrl: string; expiresAt: string } }
+  | { state: "unavailable" }
+  | { state: "temporarily_unavailable" };
+```
 
-- Raw route token.
+A ready refresh returns only `{ playbackUrl: string; expiresAt: string }` with a fresh five-minute URL and awaits the atomic telemetry RPC after issuance.
 
-Output:
-
-- `playbackUrl: string`
-- `expiresAt: string`
-
-The endpoint repeats full token, expiry, revocation, relationship, provider, and version-status validation. It does not trust data from the initial page render.
-
-Apply response headers appropriate for sensitive token-derived responses:
+Both JSON endpoints set:
 
 - `Cache-Control: no-store`
 - `Referrer-Policy: no-referrer`
 - `X-Robots-Tag: noindex, nofollow, noarchive`
 
-## Vector Data Model
+Route handlers map `{ state: "unavailable" }` to the generic HTTP 410 unavailable response and `{ state: "temporarily_unavailable" }` to stable HTTP 503 playback-temporary response; neither exposes provider/configuration/telemetry details. Only the `ready` state produces session or refresh media metadata.
 
-Enable the `vector` extension.
+## Guest Watermark and Independent Player
 
-Create enum `veo_document_kind`: `action`, `comment`.
+Guest display names are trimmed 2–60-character client-memory values. They are not authentication and are rendered only as React text, never with `dangerouslySetInnerHTML`.
 
-### `public.veo_documents`
+After session success, render repeated low-contrast guest-name watermarks with bounded locally derived layout, `pointer-events: none`, `aria-hidden="true"`, and reduced-motion-disabled ambient drift. This is an attribution deterrent, not DRM.
 
-- `id uuid primary key default gen_random_uuid()`
-- `source_kind veo_document_kind not null`
-- `source_id uuid not null`
-- `track_id uuid references public.tracks(id) on delete cascade`
-- `content text not null`
-- `content_hash text not null`
-- `embedding vector(1536) not null`
-- `metadata jsonb not null default '{}'::jsonb`
-- `created_at timestamptz not null default now()`
-- `updated_at timestamptz not null default now()`
-- Unique constraint: `(source_kind, source_id)`.
+The public player:
 
-Create the cosine index explicitly with `CREATE INDEX ... USING hnsw (embedding vector_cosine_ops)`. Retrieval orders by `embedding <=> query_embedding` so the index operator class and distance operator match.
+- owns one local `HTMLAudioElement` and imports neither `useAudioStore` nor the internal audio command bus;
+- makes no media/session/refresh request before a valid guest-name submission;
+- provides keyboard-accessible play/pause, seek, elapsed/duration, and volume controls;
+- uses a request-generation counter so stale session/refresh responses cannot overwrite newer state;
+- preserves position, volume, and intended playing state during refresh;
+- pauses and enters the generic unavailable state on revoked/expired refresh failure;
+- offers one transient refresh retry; and
+- clears timers, increments the generation, pauses, removes `src`, and calls `load()` on unmount.
 
-RLS:
+## Vector Data Model and Retrieval
 
-- Authenticated users may read documents only through the authorized retrieval function.
-- Direct client insert/update/delete is denied.
-- Server-side indexing uses the admin client after authenticating the calling user through the request-scoped client.
+Enable the `vector` extension. Create enum `veo_document_kind`: `action`, `comment`.
 
-## Source Material
+Create `public.veo_documents` with `source_kind`, `source_id`, optional `track_id`, normalized `content`, SHA-256 `content_hash`, `embedding vector(1536)`, metadata JSONB, timestamps, and unique `(source_kind, source_id)`.
 
-Index only authorized operational knowledge:
+Create exactly:
 
-- Actions: title, description, event date, and status.
-- Comments: track title, version number, timestamp marker, resolution state, and comment content.
+```sql
+create index veo_documents_embedding_cosine_hnsw_idx
+  on public.veo_documents using hnsw (embedding vector_cosine_ops);
+```
 
-Do not index:
+Deny direct client table access. Server-only indexing writes through the admin client after request-scoped authentication.
 
-- Raw file contents or audio.
-- Listening tokens or guest names.
-- User email addresses, cookies, provider payloads, environment values, or signed URLs.
+`match_veo_documents(query_embedding vector(1536), match_count int)` is `SECURITY DEFINER` with `SET search_path = public, pg_temp`, null-auth rejection, `PUBLIC` execution revoked, and `authenticated` execution granted. It clamps count to `1..8`, filters authorized extant action/comment sources, orders by `d.embedding <=> query_embedding`, returns at most eight rows, and reports similarity as `1 - (d.embedding <=> query_embedding)`.
 
-## Incremental Embedding Lifecycle
+Index only actions (title, description, event date, status) and comments (track title, version, timestamp marker, resolution, content). Never index raw files/audio, tokens, guest names, emails, cookies, provider payloads, environment values, or signed URLs.
 
-Use OpenAI `text-embedding-3-small` with 1,536 dimensions.
+## Incremental OpenAI Embeddings
 
-Create `src/lib/ai/indexing.ts`:
+Use the server-only official OpenAI client with fixed `text-embedding-3-small`, `dimensions: 1536`, finite 20-second timeout, and no retries. Build deterministic normalized source text, SHA-256 each document, choose at most 50 missing/changed sources in deterministic order, embed, upsert with the admin client, and remove stale/inaccessible rows where applicable.
 
-1. Authenticate the requesting dashboard user with the request-scoped Supabase client.
-2. Fetch accessible actions/comments changed since their stored `content_hash`.
-3. Build deterministic normalized source text.
-4. Compute SHA-256 content hashes.
-5. Batch only missing or changed records, capped at 50 documents per request.
-6. Request embeddings through the server-only OpenAI client.
-7. Upsert through the admin client.
-8. Remove stale documents whose source was deleted or became inaccessible where applicable.
+Index lazily before retrieval and after relevant mutations when practical. Return an explicit `current | pending | unavailable` result. If refresh is pending or unavailable, VEO AI fails closed rather than representing partial/stale context as current.
 
-Index lazily before retrieval and after relevant successful mutations when practical. If indexing fails, chat reports that current knowledge could not be refreshed; it must not answer from silently incomplete context as if it were current.
+`OPENAI_API_KEY` is server-only. `OPENAI_CHAT_MODEL` may only be `gpt-4.1-mini`, `gpt-4.1`, or `gpt-4o-mini`; otherwise use `gpt-4.1-mini`. Browser code never imports OpenAI or uses `dangerouslyAllowBrowser`.
 
-## Retrieval Function
+## VEO AI Chat and Durable Rate Limit
 
-Create `public.match_veo_documents(query_embedding vector(1536), match_count int)` as a security-definer function with a fixed search path.
+`POST /api/veo-ai/chat` accepts at most 20 strict client messages, each `{ role: "user" | "assistant"; content: string }`; content is 1–4,000 characters, aggregate content is at most 24,000 characters, and the final role must be `user`. Reject client `system`, `developer`, tool, and unknown roles. The server owns all system instructions and source context.
 
-The function:
+Flow: authenticate with request-scoped Supabase client; consume rate limit; refresh index; embed latest user question; retrieve up to eight authorized sources; build server system instructions; request a non-streaming completion; return text answer and public-safe source labels. The model may reason over supplied sources but cannot claim to execute actions, status changes, uploads, revocations, or unprovided-data inspection.
 
-- Requires `auth.uid()` to be non-null.
-- Clamps `match_count` to the inclusive range `1..8` and returns at most eight authorized documents.
-- Filters source rows through the same access model as the underlying actions/comments.
-- Returns `id`, `source_kind`, `source_id`, `track_id`, `content`, `metadata`, and cosine similarity.
-- Does not accept arbitrary SQL filters from the client.
+Create `public.veo_ai_requests` and `consume_veo_ai_request()`. The security-definer function has fixed search path, rejects null `auth.uid()`, accepts no user ID, acquires `pg_advisory_xact_lock(hashtext(auth.uid()::text))`, deletes that user’s rows older than one minute, allows at most 10 accepted rolling-minute requests, and inserts only the derived authenticated user. Revoke `PUBLIC` execution and grant `authenticated` only. Rate-limit failures return stable HTTP 429.
 
-Because the current product has one shared authenticated team, source authorization maps to the existing RLS-visible records. The function boundary remains compatible with future team identifiers without exposing cross-team data.
+## Dashboard and Chat UI
 
-## OpenAI Boundary
+Create protected `/veo-ai` and a local-only `VEO_AI_Chat` component with suggested prompts, local conversation, draft-preserving errors, retry, source chips without UUIDs, plain-text rendering, and no persisted conversations.
 
-Create `src/lib/ai/env.ts` and `src/lib/ai/openai.ts`, both server-only.
+When submitting, construct exactly:
 
-Required environment variable:
+```ts
+const requestMessages = [...messages, userMessage];
+```
 
-- `OPENAI_API_KEY`
+Reuse that exact `requestMessages` value for optimistic state, POST body, and retry state. Do not create divergent state/request/retry arrays.
 
-Rules:
+Activate all completed master-plan routes in desktop/mobile navigation. Preserve the internal persistent player across dashboard routes.
 
-- Use the installed official `openai` package.
-- Read `OPENAI_CHAT_MODEL`, validate it against the supported allowlist `gpt-4.1-mini`, `gpt-4.1`, and `gpt-4o-mini`, and default to `gpt-4.1-mini`.
-- Embedding model is fixed to `text-embedding-3-small` for schema compatibility.
-- Browser code never imports the OpenAI client.
-- Do not log prompts, completions, retrieved context, keys, or provider payloads.
-- Apply finite timeouts and stable user-facing errors.
+Dashboard counts must use:
 
-LangChain may be used only if it reduces code and preserves the server/security boundary. Direct OpenAI SDK orchestration is preferred for this bounded RAG flow.
+```ts
+type DashboardSummaryResult =
+  | { state: "ready"; summary: DashboardSummary }
+  | { state: "unavailable" };
+```
 
-## Chat API
+Never convert data/provider failures into fabricated zero counts. Render a genuine unavailable-data state; zero labels are reserved for successful empty results.
 
-Create `POST /api/veo-ai/chat`.
+## Validation and Completion
 
-Input:
+The no-test override prohibits creating, changing, or executing automated-test files/commands. Validate through migration/RLS/security-definer inspection, token lifecycle and access-log redaction inspection, type checking, lint, production build, browser and network review, server/secret import inspection, source-grounding review, scope review, and Git integrity review.
 
-- `messages`: up to 20 messages whose role is only `user` or `assistant`.
-- Each message content: 1–4,000 characters.
-- Aggregate message content: at most 24,000 characters.
-- The final message must have role `user`.
-- Client-provided `system`, `developer`, tool, or unknown roles are rejected. All privileged instructions are constructed exclusively on the server.
-
-Flow:
-
-1. Authenticate with the request-scoped Supabase client.
-2. Enforce the durable rate limit.
-3. Refresh changed embeddings within the bounded indexing budget.
-4. Embed the latest user question.
-5. Retrieve up to eight authorized documents.
-6. Build a concise system instruction that requires source-grounded answers and explicit uncertainty.
-7. Request a non-streaming answer for the initial release.
-8. Return the answer and public-safe source references.
-
-The model may summarize and reason over retrieved actions/comments. It must not claim to execute actions, change statuses, upload files, revoke links, or inspect unprovided data.
-
-## Durable Rate Limiting
-
-Create `public.veo_ai_requests`:
-
-- `id bigint generated always as identity primary key`
-- `user_id uuid not null references public.users(id) on delete cascade`
-- `created_at timestamptz not null default now()`
-
-Enable RLS on `veo_ai_requests` with no direct client policies and revoke direct table writes from client roles. Add an index on `(user_id, created_at)`.
-
-A security-definer function atomically permits at most ten chat requests per authenticated user in a rolling minute and inserts the accepted request. It rejects a null `auth.uid()`, derives `user_id` only from `auth.uid()`, accepts no caller-supplied user ID, and uses a fixed search path. Revoke public execution and grant execution only to `authenticated`. Old rows may be pruned opportunistically.
-
-Return HTTP 429 with a stable retry message when limited.
-
-## Database Type Refresh
-
-Regenerate or update `src/types/database.types.ts` after the Phase 5 migration. It must include `listening_links`, `veo_documents`, `veo_ai_requests`, `listening_link_status`, `veo_document_kind`, and the exact typed signatures for listening-link, retrieval, and rate-limit RPCs before application code consumes them.
-
-## VEO AI Interface
-
-Create `src/app/(dashboard)/veo-ai/page.tsx` and `src/components/chat/VEO_AI_Chat.tsx`.
-
-The page includes:
-
-- A clear explanation that answers use VEO actions and track comments.
-- Suggested prompts grounded in supported capabilities.
-- Conversation thread, composer, sending state, error recovery, and source chips.
-- Source labels such as action title or track/version/timestamp, never raw UUIDs.
-- An empty state that explains missing source data rather than inventing sample answers.
-
-Client state remains local to the chat component for this release. Conversations are not persisted to the database.
-
-## Final Navigation and Dashboard
-
-- Activate `/veo-ai` in desktop and mobile navigation.
-- All master-plan modules become real links.
-- Update the dashboard home cards to route to their completed modules and derive honest summaries from authorized data when economical.
-- Remove `Coming soon` labels only for implemented modules.
-- Preserve the persistent internal player for authenticated dashboard routes.
-
-## Responsive and Visual Direction
-
-- External listening is a focused, distraction-free listening room, not a miniature dashboard.
-- Use the established black/light grounds and VEO purple accent.
-- Watermarking is visible but does not destroy track metadata readability.
-- AI chat uses a narrow readable conversation column with distinct source references and stable composer placement above the player dock.
-- All controls are keyboard accessible and expose visible focus.
-- Reduced motion disables ambient watermark drift, animated message entrance, and nonessential waveform/player transitions.
-- Light and dark themes preserve semantic contrast.
-
-## Error and Empty States
-
-- Invalid/revoked/expired token: one indistinguishable listening-unavailable screen.
-- Missing guest name: field guidance without starting media requests.
-- URL refresh failure: pause playback and offer one retry; repeat failure returns to unavailable state.
-- Missing service-role/OpenAI configuration: only the dependent feature shows a stable configuration state.
-- No indexed sources: VEO AI explains which supported VEO records must exist.
-- Provider timeout: retain the user's draft and provide retry.
-- Retrieval failure: do not ask the model to answer without the intended knowledge context.
-
-## Security Requirements
-
-- Raw listening tokens are returned once, never stored or logged.
-- Token comparison uses server-side hash lookup.
-- Public listeners have no direct database or storage permissions.
-- Signed listening URLs expire after five minutes.
-- Service-role and OpenAI keys remain server-only and uncommitted.
-- AI retrieval is authenticated and source-authorized.
-- Model output is rendered as text/controlled Markdown without unsafe HTML.
-- Public token-derived responses use no-store/no-referrer/no-index controls.
-- `.env.local` remains ignored and untracked.
-
-## No-Test Validation Gates
-
-The explicit no-test override prohibits creating, modifying, or running test files. Validate with:
-
-- Migration, RLS, security-definer, token lifecycle, and vector policy inspection.
-- Secret-boundary and client-bundle inspection.
-- `npx tsc --noEmit`.
-- `npm run lint`.
-- `npm run build`.
-- Browser inspection of link creation, guest entry, playback, watermarking, revocation/expiry states, and VEO AI at desktop/mobile widths when non-secret configured services are available.
-- Network inspection for no media-before-name, short-lived refresh behavior, no-store headers, and absence of raw storage/provider credentials.
-- OpenAI scope and source-grounding review with non-sensitive development records only.
-- Final master-plan scope, route, repository, and Git integrity review.
-
-## Completion Criteria
-
-Phase 5 is complete when:
-
-- Secure, expiring, revocable external listening works through a separate public route and player.
-- Guest watermarking and signed URL refresh preserve the intended security boundary.
-- pgvector indexing and authorized retrieval support VEO AI answers over actions/comments.
-- VEO AI is active and source-grounded, with server-only OpenAI access and durable rate limiting.
-- All master-plan dashboard modules are implemented and linked.
-- TypeScript, lint, build, browser, security, scope, and Git gates pass.
-- The phase is committed, integrated into `main`, and pushed without force.
+Phase 5 is complete when secure external listening, guest watermarking, independent session/refresh player flow, pgvector retrieval, server-only source-grounded VEO AI, durable rate limiting, active dashboard modules, privacy/security checks, and non-force integration into `main` are complete.

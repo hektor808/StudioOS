@@ -23,7 +23,7 @@ Phase 4 includes:
 Phase 4 does not include:
 
 - Public listening links or guest access.
-- Supabase service-role access.
+- General-purpose or browser-accessible Supabase service-role access. Phase 4 uses only the existing Phase 3 server-only admin client for verified upload-registration RPC calls and authorized Supabase Storage signed-URL issuance.
 - OpenAI, embeddings, vector retrieval, or VEO AI chat.
 - Public R2 buckets or permanent R2 URLs.
 
@@ -36,6 +36,15 @@ Use the approved provider split:
 - **PostgreSQL:** provider, bucket, object key, content metadata, ownership, and relationships.
 
 A database row never grants object access by itself. Authorized server code issues short-lived instructions or URLs.
+
+The Supabase boundary is split deliberately:
+
+- The request-scoped authenticated client establishes the user and remains the authorization boundary for track reads, `public.can_manage_track(trackId)`, and version/file download-row lookup under RLS.
+- HMAC verification and R2 `HeadObject` verification run before privileged upload persistence.
+- Only after those upload checks pass may server-only completion code call the existing Phase 3 `createAdminClient()` from `src/lib/supabase/admin.ts` for a service-role-only atomic registration RPC.
+- Separately, only after request-scoped authentication, an RLS-authorized lookup of the requested `track_versions` or `files` row, and validation of a safe `supabase`/`playback` private locator may the server-only storage signer use `createAdminClient()` solely for `storage.from("playback").createSignedUrl(...)`.
+- These are the admin client's only Phase 4 uses. It is never imported by a Client Component, presign handler, Operations module, Content module, or authorization module; it does not replace request-scoped authentication, RLS lookup, or capability evaluation.
+- Browser roles cannot execute registration RPCs, insert directly into `track_versions` or `files`, or directly read/list Supabase `storage.objects`.
 
 ## Dependencies
 
@@ -109,7 +118,7 @@ Request JSON:
 
 - `trackId: string`
 - `filename: string`
-- `contentType: string`
+- `contentType: string` (the browser-reported value may be empty or an approved alias; the server derives and signs the canonical MIME type from the allowed extension/type rule)
 - `size: number`
 - `uploadKind: "version" | "file"`
 - `fileType?: Database["public"]["Enums"]["file_type"]`
@@ -130,7 +139,9 @@ Security and validation:
 - Require an authenticated Supabase user.
 - Require `public.can_manage_track(trackId)` through the request-scoped RLS client; read access alone is insufficient.
 - Enforce configured size limits before signing.
-- Allow only approved MIME types and extensions for the selected upload kind.
+- Allow only approved extensions for the selected upload kind and map each extension to one canonical MIME type.
+- Accept an absent browser MIME, `application/octet-stream`, or an explicitly approved browser alias only when the extension/type rule permits it; reject a conflicting specific MIME.
+- Sign and return the canonical MIME in the required `Content-Type` PUT header and bind that canonical value into the completion grant.
 - Sign for ten minutes.
 - Do not accept ACL or public-read headers.
 - Return generic 400, 401, 403, 404, and 503 responses without provider internals.
@@ -154,7 +165,7 @@ Responsibilities:
 - Support drag-and-drop plus file-picker input.
 - Show per-file progress, cancellation, retry, accepted types, and size guidance.
 - Keep upload state local to the component rather than Zustand.
-- On provider completion, call an authorized persistence endpoint with the signed object descriptor and original file metadata.
+- On provider completion, call the authorized persistence endpoint with only the opaque completion grant and provider-returned ETag; signed claims remain the authority for object and file metadata.
 - Display success only after database persistence succeeds.
 - On persistence failure, clearly report that the object uploaded but registration failed and offer registration retry; do not silently repeat the object upload.
 - Close and clean up the Uppy instance on unmount.
@@ -171,10 +182,13 @@ The request contains `completionGrant` and the provider-returned `etag`. The ser
 4. Verifies that the claimed key belongs to the expected user, track, and allowed category.
 5. Calls R2 `HeadObject` and verifies that the object exists and its size/content type match the signed claims; for single-part uploads, compare the normalized ETag when R2 returns one.
 6. Rejects keys not rooted in the server-generated prefix or objects that do not match the grant.
-7. Persists a `track_versions` or `files` row using the request-scoped Supabase client.
-8. Returns a focused DTO for the new row.
+7. Creates the existing Phase 3 server-only Supabase admin client only after all preceding checks pass.
+8. Calls a service-role-only atomic registration RPC, passing the verified user ID and signed/verified object metadata.
+9. Returns a focused DTO for the inserted or existing row.
 
 Add a unique constraint across storage provider, bucket, and object key. Completion is idempotent: replaying a valid grant returns the existing row, while the uniqueness constraint prevents duplicate registration. Expired grants require a new presign flow; a still-valid grant can be retried without re-uploading.
+
+The registration RPCs are `security invoker` with a fixed `search_path`, execute privilege revoked from `public`, `anon`, and `authenticated`, and execute granted only to `service_role`. They receive the already authenticated user ID explicitly because the service-role client is not the user's request session. The Phase 4 migration also revokes `INSERT` on `track_versions` and `files` from `authenticated` and removes their authenticated insert policies. RLS remains enabled for request-scoped reads and existing authorized update/delete behavior; browser code has no direct registration path.
 
 For a track version:
 
@@ -199,12 +213,13 @@ Enhance the Phase 3 track detail page with:
 - Status treatment for processing, ready, archived, and failed versions.
 - Download actions that request short-lived URLs from an authorized server endpoint.
 
-Create a provider-aware storage signer:
+Create a provider-aware server-only storage signer:
 
-- Supabase objects use Supabase signed URLs.
-- R2 objects use S3-compatible presigned GET URLs.
-- The signer accepts a database storage locator and returns a short-lived URL DTO.
-- Signed URLs are never persisted.
+- The download endpoint first authenticates with the request-scoped client and performs an RLS-authorized lookup of the requested version/file row. Client input contains only the record type and record ID; it never supplies a provider, bucket, or object key.
+- Before signing, reject empty, URL-shaped, absolute, backslash-containing, or traversal-segment object keys. A Supabase locator must be exactly provider `supabase`, bucket `playback`, and a safe relative private key.
+- Only after that authorization and locator validation may the signer create the existing admin client solely to call `storage.from("playback").createSignedUrl(...)`. Phase 4 adds no browser `storage.objects` policy or policy-based Storage SDK/API list/read path; the browser receives only the authorized short-lived signed URL.
+- R2 locators use only the server-side R2 client and credentials, require the configured private R2 bucket plus a safe relative key, and receive S3-compatible presigned GET URLs; the Supabase admin client is not used for R2.
+- The signer returns a short-lived URL DTO. Signed URLs, locators, and provider errors are never logged or persisted.
 
 ## Operations Module
 
@@ -239,6 +254,8 @@ Behavior:
 - Overdue planned/in-progress actions receive a semantic warning treatment.
 - Completed and cancelled actions remain visible when filters permit.
 - Empty months explain how to schedule the first action.
+- Route search parameters are typed as `string | string[] | undefined`; normalization takes the first value from a repeated parameter, trims it, validates it, and all generated links emit one canonical `month` and at most one canonical `status` value.
+- An edit is successful only when `.update(...).eq("id", actionId).select("id").maybeSingle()` returns an affected row. A null row is the same stable failure as an RLS-denied or missing record, never a success response.
 
 Create modules under `src/lib/operations/` for queries, mutations, validation, and DTOs. Use request-scoped Supabase and RLS.
 
@@ -264,6 +281,8 @@ Content fields:
 - Notes: optional, max 5,000 characters.
 
 No remote reference image is fetched or proxied in this phase. Cards use metadata and designed artwork fallbacks, preventing tracker leakage and broken-image UI.
+
+Route search parameters are typed as `string | string[] | undefined`; normalization takes the first repeated value, trims and validates it, and generated filter links emit at most one canonical `platform` and one canonical `status`. An edit is successful only when `.update(...).eq("id", contentIdeaId).select("id").maybeSingle()` returns an affected row. A null row is reported through the same stable failure as an inaccessible or missing record.
 
 Create modules under `src/lib/content/` for queries, mutations, validation, and DTOs.
 
@@ -301,8 +320,10 @@ Follow the established VEO system:
 - R2 credentials are server-only.
 - The presign endpoint signs only server-generated keys after `can_manage_track()` authorization.
 - Completion grants are HMAC signed, short-lived, user-bound, and verified against R2 `HeadObject` before idempotent persistence.
-- Upload and download URLs, completion grants, signatures, and ETags are never logged or persisted as secrets.
-- Database RLS remains enabled and authoritative.
+- The existing server-only Phase 3 admin client has only two Phase 4 uses: service-role-only registration RPCs after the complete upload verification sequence, and Supabase Storage `createSignedUrl` after request authentication, RLS-authorized row lookup, and safe `supabase`/`playback` locator validation. It performs no authorization itself and is never used for R2 signing.
+- Upload/download URLs, object locators, completion grants, and ETags necessarily appear in their defined ephemeral transport paths. Privacy review inspects logging calls, telemetry/error serialization, database writes, Zustand persistence, local/session storage, and rendered markup rather than rejecting those required identifiers from transport source code.
+- Completion grants, signatures, ETags, and signed URLs are never logged or persisted. Private object keys and configured bucket names are persisted only in their approved storage locator columns.
+- Database RLS remains enabled and authoritative for request-scoped authentication, reads, Operations, Content, downloads, and capability checks; authenticated clients have no direct insert or registration-RPC permission for `track_versions` or `files`.
 - No object body passes through Next.js.
 - No permanent public bucket or URL is introduced.
 - `.env.local` remains ignored and untracked.
@@ -312,7 +333,10 @@ Follow the established VEO system:
 The explicit no-test override prohibits creating, modifying, or running test files. Validate with:
 
 - R2 environment, CORS example, key construction, route authorization, and scope inspection.
-- Supabase migration/policy review for atomic version allocation and storage metadata.
+- Supabase migration dry-run inspection followed by application to an authorized local or explicitly non-production target; never apply Phase 4 first to production.
+- Post-application migration-history, constraint, policy, function-owner/search-path, and execute-grant catalog verification.
+- Regenerate `src/types/database.types.ts` from the migrated target with Supabase CLI; do not hand-edit generated database types.
+- Privacy inspection of actual logging, telemetry, error-serialization, persistence, browser-storage, and rendered-markup sinks while allowing required ephemeral transport fields.
 - `npx tsc --noEmit`.
 - `npm run lint`.
 - `npm run build`.
