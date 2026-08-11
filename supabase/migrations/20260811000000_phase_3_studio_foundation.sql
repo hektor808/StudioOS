@@ -256,6 +256,14 @@ create trigger comments_validate_timestamp
 before insert or update of version_id, timestamp_marker on public.comments
 for each row execute procedure public.validate_comment_timestamp();
 
+-- Migration-only backfill for auth users that predate the profile trigger.
+insert into public.users (id, full_name)
+select
+  id,
+  left(coalesce(raw_user_meta_data ->> 'full_name', ''), 160)
+from auth.users
+on conflict (id) do nothing;
+
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute procedure public.handle_new_user();
