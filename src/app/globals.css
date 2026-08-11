@@ -131,3 +131,93 @@
     text-wrap: balance;
   }
 }
+
+@layer base {
+  :root {
+    --player-dock-height: 10rem;
+  }
+
+  @media (min-width: 1024px) {
+    :root {
+      --player-dock-height: 6rem;
+    }
+  }
+}
+
+@layer components {
+  .dashboard-player-dock {
+    position: fixed;
+    z-index: 40;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: max(1rem, env(safe-area-inset-bottom));
+    left: max(1rem, env(safe-area-inset-left));
+    overflow: hidden;
+  }
+
+  .dashboard-shell-main {
+    padding-right: max(1rem, env(safe-area-inset-right));
+    padding-bottom: calc(
+      var(--player-dock-height) + max(3rem, env(safe-area-inset-bottom))
+    );
+    padding-left: max(1rem, env(safe-area-inset-left));
+  }
+
+  .audio-range {
+    width: 100%;
+    min-width: 0;
+    height: 0.25rem;
+    cursor: pointer;
+    appearance: none;
+    border-radius: 9999px;
+    background: hsl(var(--border));
+  }
+
+  .audio-range:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+  }
+
+  .audio-range:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 4px;
+  }
+
+  .audio-range::-webkit-slider-thumb {
+    width: 1rem;
+    height: 1rem;
+    appearance: none;
+    border: 3px solid hsl(var(--card));
+    border-radius: 9999px;
+    background: #2e008b;
+    box-shadow:
+      0 0 0 1px hsl(var(--border)),
+      0 0 12px rgba(46, 0, 139, 0.35);
+  }
+
+  .audio-range::-moz-range-thumb {
+    width: 0.625rem;
+    height: 0.625rem;
+    border: 3px solid hsl(var(--card));
+    border-radius: 9999px;
+    background: #2e008b;
+    box-shadow:
+      0 0 0 1px hsl(var(--border)),
+      0 0 12px rgba(46, 0, 139, 0.35);
+  }
+
+  @media (min-width: 1024px) {
+    .dashboard-player-dock {
+      right: max(2rem, env(safe-area-inset-right));
+      bottom: max(2rem, env(safe-area-inset-bottom));
+      left: calc(260px + 4rem);
+    }
+
+    .dashboard-shell-main {
+      padding-right: 2rem;
+      padding-bottom: calc(
+        var(--player-dock-height) + max(4rem, env(safe-area-inset-bottom))
+      );
+      padding-left: 2rem;
+    }
+  }
+}
