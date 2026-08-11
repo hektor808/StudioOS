@@ -159,6 +159,15 @@ export async function resolveCommentAction(
 
   try {
     const supabase = await createClient();
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError || !user) {
+      return { status: "error", message: studioMessages.mutationFailed };
+    }
+
     const { data, error } = await supabase
       .from("comments")
       .update({ is_resolved: true })

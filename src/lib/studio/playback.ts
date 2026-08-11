@@ -10,12 +10,90 @@ function playbackUnavailable(): never {
   throw new Error(studioMessages.playbackUnavailable);
 }
 
-function isPrivateObjectKey(value: string): boolean {
-  const objectKey = value.trim();
-  return (
-    objectKey.length > 0 &&
-    !/^(?:[a-z][a-z\d+.-]*:|\/\/)/i.test(objectKey)
-  );
+const UNSAFE_DECODED_DELIMITERS = /[\/\\?#]/;
+const ABSOLUTE_SCHEME_SEGMENT = /^[a-z][a-z\d+.-]*:$/i;
+
+function containsControlCharacters(value: string): boolean {
+  return Array.from(value).some((character) => {
+    const codePoint = character.codePointAt(0);
+    return (
+      codePoint !== undefined &&
+      (codePoint <= 31 || (codePoint >= 127 && codePoint <= 159))
+    );
+  });
+}
+
+function decodeObjectKeySegment(segment: string): string | null {
+  let decoded = segment;
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    let next: string;
+
+    try {
+      next = decodeURIComponent(decoded);
+    } catch {
+      return null;
+    }
+
+    if (next === "." || next === "..") {
+      return null;
+    }
+
+    if (
+      containsControlCharacters(next) ||
+      UNSAFE_DECODED_DELIMITERS.test(next)
+    ) {
+      return null;
+    }
+
+    if (next === decoded) {
+      return next;
+    }
+
+    decoded = next;
+  }
+
+  return null;
+}
+
+function getSafeRelativeObjectKey(value: string): string | null {
+  if (
+    value.length === 0 ||
+    value.trim().length === 0 ||
+    value.startsWith("/") ||
+    value.includes("\\") ||
+    value.includes("://") ||
+    value.includes("?") ||
+    value.includes("#") ||
+    containsControlCharacters(value) ||
+    /^[a-z][a-z\d+.-]*:\//i.test(value)
+  ) {
+    return null;
+  }
+
+  const segments = value.split("/");
+  if (segments.some((segment) => segment.length === 0)) {
+    return null;
+  }
+
+  for (let index = 0; index < segments.length; index += 1) {
+    const segment = segments[index];
+    if (segment === "." || segment === "..") {
+      return null;
+    }
+
+    const decoded = decodeObjectKeySegment(segment);
+    if (
+      decoded === null ||
+      (index === 0 &&
+        segments.length > 1 &&
+        ABSOLUTE_SCHEME_SEGMENT.test(decoded))
+    ) {
+      return null;
+    }
+  }
+
+  return segments.join("/");
 }
 
 export async function getSignedPlaybackSource(
@@ -48,11 +126,12 @@ export async function getSignedPlaybackSource(
       playbackUnavailable();
     }
 
+    const objectKey = getSafeRelativeObjectKey(version.storage_url);
     if (
       version.status !== "ready" ||
       version.storage_provider !== "supabase" ||
       version.storage_bucket !== "playback" ||
-      !isPrivateObjectKey(version.storage_url)
+      objectKey === null
     ) {
       playbackUnavailable();
     }
@@ -65,7 +144,7 @@ export async function getSignedPlaybackSource(
     const { createAdminClient } = await import("@/lib/supabase/admin");
     const { data, error } = await createAdminClient().storage
       .from("playback")
-      .createSignedUrl(version.storage_url, SIGNED_PLAYBACK_TTL_SECONDS);
+      .createSignedUrl(objectKey, SIGNED_PLAYBACK_TTL_SECONDS);
 
     if (error || !data?.signedUrl) {
       playbackUnavailable();

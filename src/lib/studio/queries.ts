@@ -16,6 +16,12 @@ import { versionIdSchema } from "@/lib/studio/validation";
 
 const STUDIO_DATA_UNAVAILABLE = "Studio data is unavailable.";
 const UNNAMED_TEAM_MEMBER = "Unnamed team member";
+const TRACK_STATUSES = [
+  "draft",
+  "active",
+  "completed",
+  "cancelled",
+] as const satisfies readonly TrackStatus[];
 
 function dataUnavailable(): never {
   throw new Error(STUDIO_DATA_UNAVAILABLE);
@@ -62,12 +68,19 @@ export async function getStudioCatalog(
       catalogQuery = catalogQuery.eq("status", filters.status);
     }
 
-    const [catalogResult, countsResult] = await Promise.all([
+    const [catalogResult, countResults] = await Promise.all([
       catalogQuery,
-      supabase.from("tracks").select("status"),
+      Promise.all(
+        TRACK_STATUSES.map((status) =>
+          supabase
+            .from("tracks")
+            .select("id", { count: "exact", head: true })
+            .eq("status", status),
+        ),
+      ),
     ]);
 
-    if (catalogResult.error || countsResult.error) {
+    if (catalogResult.error) {
       dataUnavailable();
     }
 
@@ -78,9 +91,14 @@ export async function getStudioCatalog(
       cancelled: 0,
     };
 
-    for (const row of countsResult.data) {
-      statusCounts[row.status] += 1;
-    }
+    TRACK_STATUSES.forEach((status, index) => {
+      const result = countResults[index];
+      if (result.error || result.count === null) {
+        dataUnavailable();
+      }
+
+      statusCounts[status] = result.count;
+    });
 
     const tracks: StudioTrackSummary[] = catalogResult.data.map((row) => {
       const versions = [...row.track_versions].sort(
