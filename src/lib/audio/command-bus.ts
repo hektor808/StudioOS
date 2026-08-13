@@ -10,7 +10,9 @@ const listeners = new Set<AudioCommandListener>();
 
 export function subscribeToAudioCommands(listener: AudioCommandListener) {
   listeners.add(listener);
-  return () => listeners.delete(listener);
+  return () => {
+    listeners.delete(listener);
+  };
 }
 
 export function requestAudioSeek(sourceId: string, seconds: number) {

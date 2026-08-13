@@ -38,6 +38,14 @@ type RefreshRestore = {
   shouldPlay: boolean;
 };
 
+function normalizeResourceUrl(url: string) {
+  try {
+    return new URL(url, document.baseURI).href;
+  } catch {
+    return null;
+  }
+}
+
 export function GlobalPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceGenerationRef = useRef(0);
@@ -148,7 +156,7 @@ export function GlobalPlayer() {
       sourceGenerationRef.current = refreshRestore.sourceGeneration;
       transportGenerationRef.current += 1;
       allowedPlayGenerationRef.current = null;
-      activePlaybackUrlRef.current = playbackUrl;
+      activePlaybackUrlRef.current = normalizeResourceUrl(playbackUrl);
       refreshRestoreRef.current = refreshRestore;
       audio.pause();
       audio.src = playbackUrl;
@@ -161,7 +169,9 @@ export function GlobalPlayer() {
     transportGenerationRef.current += 1;
     allowedPlayGenerationRef.current = null;
     refreshRestoreRef.current = null;
-    activePlaybackUrlRef.current = playbackUrl ?? null;
+    activePlaybackUrlRef.current = playbackUrl
+      ? normalizeResourceUrl(playbackUrl)
+      : null;
 
     audio.pause();
     audio.removeAttribute("src");
@@ -237,11 +247,11 @@ export function GlobalPlayer() {
           }
 
           const responsePayload: unknown = await response.json();
-          const payload: Record<string, unknown> | null =
-            responsePayload &&
+          const payload =
+            responsePayload !== null &&
             typeof responsePayload === "object" &&
             !Array.isArray(responsePayload)
-              ? responsePayload
+              ? (responsePayload as Record<string, unknown>)
               : null;
           const responseExpiresAt =
             payload && typeof payload.expiresAt === "string"
@@ -285,8 +295,10 @@ export function GlobalPlayer() {
   ) {
     const activeUrl = activePlaybackUrlRef.current;
     if (!activeUrl) return false;
-    const eventUrl = event.currentTarget.currentSrc || event.currentTarget.src;
-    return eventUrl.endsWith(activeUrl) || eventUrl === activeUrl;
+    const eventUrl = normalizeResourceUrl(
+      event.currentTarget.currentSrc || event.currentTarget.src,
+    );
+    return eventUrl === activeUrl;
   }
 
   async function requestPlayback(
@@ -393,12 +405,22 @@ export function GlobalPlayer() {
 
   function handleDuration(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
+    if (
+      refreshRestoreRef.current?.sourceGeneration === sourceGenerationRef.current
+    ) {
+      return;
+    }
     currentDurationRef.current = event.currentTarget.duration;
     reportDuration(event.currentTarget.duration);
   }
 
   function handleTimeUpdate(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
+    if (
+      refreshRestoreRef.current?.sourceGeneration === sourceGenerationRef.current
+    ) {
+      return;
+    }
     currentTimeRef.current = event.currentTarget.currentTime;
     reportCurrentTime(event.currentTarget.currentTime);
   }
