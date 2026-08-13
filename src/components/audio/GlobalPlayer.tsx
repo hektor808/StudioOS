@@ -121,6 +121,17 @@ export function GlobalPlayer() {
           : Math.max(0, command.seconds);
       audio.currentTime = nextTime;
       currentTimeRef.current = nextTime;
+      const refreshRestore = refreshRestoreRef.current;
+      if (
+        refreshRestore &&
+        refreshRestore.sourceId === currentSourceIdRef.current &&
+        refreshRestore.sourceGeneration === sourceGenerationRef.current
+      ) {
+        refreshRestoreRef.current = {
+          ...refreshRestore,
+          currentTime: nextTime,
+        };
+      }
       reportCurrentTimeRef.current(nextTime);
     });
 
@@ -365,11 +376,34 @@ export function GlobalPlayer() {
     const audio = audioRef.current;
     if (!audio || !source) return;
 
-    if (!audio.paused || isPlaying) {
+    const refreshRestore = refreshRestoreRef.current;
+    const isActiveRefresh =
+      refreshRestore?.sourceId === currentSourceIdRef.current &&
+      refreshRestore.sourceGeneration === sourceGenerationRef.current;
+
+    if (
+      !audio.paused ||
+      isPlaying ||
+      (isActiveRefresh && refreshRestore.shouldPlay)
+    ) {
       transportGenerationRef.current += 1;
       allowedPlayGenerationRef.current = null;
+      if (isActiveRefresh) {
+        refreshRestoreRef.current = {
+          ...refreshRestore,
+          shouldPlay: false,
+        };
+      }
       audio.pause();
       reportPlaying(false);
+      return;
+    }
+
+    if (isActiveRefresh) {
+      refreshRestoreRef.current = {
+        ...refreshRestore,
+        shouldPlay: true,
+      };
       return;
     }
 
@@ -454,6 +488,17 @@ export function GlobalPlayer() {
       : 0;
     audio.currentTime = nextTime;
     currentTimeRef.current = nextTime;
+    const refreshRestore = refreshRestoreRef.current;
+    if (
+      refreshRestore &&
+      refreshRestore.sourceId === currentSourceIdRef.current &&
+      refreshRestore.sourceGeneration === sourceGenerationRef.current
+    ) {
+      refreshRestoreRef.current = {
+        ...refreshRestore,
+        currentTime: nextTime,
+      };
+    }
     reportCurrentTime(nextTime);
   }
 
