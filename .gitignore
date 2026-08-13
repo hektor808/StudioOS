@@ -34,3 +34,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local Claude worktree control content and SDD scratch
+/.claude/worktrees/
+/.superpowers/
