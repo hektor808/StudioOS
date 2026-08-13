@@ -108,6 +108,22 @@ export function WaveformDisplay(props: WaveformDisplayProps) {
 
         wavesurferRef.current = instance;
 
+        const syncLatestTime = () => {
+          if (!isCurrent() || !instance || wavesurferRef.current !== instance) {
+            return;
+          }
+
+          const { currentTime: latestCurrentTime } = latestPropsRef.current;
+          if (
+            !Number.isFinite(latestCurrentTime) ||
+            latestCurrentTime < 0
+          ) {
+            return;
+          }
+
+          instance.setTime(latestCurrentTime);
+        };
+
         instance.on("interaction", (seconds) => {
           if (!isCurrent()) {
             destroyInstance();
@@ -138,6 +154,9 @@ export function WaveformDisplay(props: WaveformDisplayProps) {
             destroyInstance();
             return;
           }
+
+          syncLatestTime();
+          if (!isCurrent()) return;
 
           setWaveformState({ phase: "ready", message: null });
         });
