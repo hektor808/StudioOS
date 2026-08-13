@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { Button } from "@/components/ui/button";
+import { subscribeToAudioCommands } from "@/lib/audio/command-bus";
 import { formatPlaybackTime } from "@/lib/audio/format-time";
 import { useAudioStore } from "@/lib/store/useAudioStore";
 
@@ -20,12 +21,33 @@ const springTransition = {
   damping: 30,
 };
 
+const PLAYBACK_REFRESH_LEAD_MS = 60_000;
+const MIN_REFRESH_DELAY_MS = 1_000;
+const refreshPlaybackError =
+  "Unable to refresh playback. Select this version again to retry.";
+
+type SourceIdentity = {
+  sourceId: string;
+  playbackUrl: string;
+};
+
+type RefreshRestore = {
+  sourceId: string;
+  sourceGeneration: number;
+  currentTime: number;
+  shouldPlay: boolean;
+};
+
 export function GlobalPlayer() {
   const audioRef = useRef<HTMLAudioElement>(null);
   const sourceGenerationRef = useRef(0);
   const transportGenerationRef = useRef(0);
   const allowedPlayGenerationRef = useRef<number | null>(null);
   const activePlaybackUrlRef = useRef<string | null>(null);
+  const previousSourceRef = useRef<SourceIdentity | null>(null);
+  const refreshRestoreRef = useRef<RefreshRestore | null>(null);
+  const refreshRequestGenerationRef = useRef(0);
+  const mountedRef = useRef(false);
   const [playbackError, setPlaybackError] = useState<string | null>(null);
   const shouldReduceMotion = useReducedMotion();
 
@@ -33,6 +55,7 @@ export function GlobalPlayer() {
   const hasSource = source !== null;
   const sourceId = source?.sourceId;
   const playbackUrl = source?.playbackUrl;
+  const expiresAt = source?.expiresAt;
   const isPlaying = useAudioStore((state) => state.isPlaying);
   const currentTime = useAudioStore((state) => state.currentTime);
   const duration = useAudioStore((state) => state.duration);
@@ -41,14 +64,103 @@ export function GlobalPlayer() {
   const reportPlaying = useAudioStore((state) => state.reportPlaying);
   const reportCurrentTime = useAudioStore((state) => state.reportCurrentTime);
   const reportDuration = useAudioStore((state) => state.reportDuration);
+  const refreshSource = useAudioStore((state) => state.refreshSource);
+
+  const currentSourceIdRef = useRef<string | null>(sourceId ?? null);
+  const currentPlaybackUrlRef = useRef<string | null>(playbackUrl ?? null);
+  const currentTimeRef = useRef(currentTime);
+  const currentDurationRef = useRef(duration);
+  const isPlayingRef = useRef(isPlaying);
+  const reportPlayingRef = useRef(reportPlaying);
+  const reportCurrentTimeRef = useRef(reportCurrentTime);
+
+  currentSourceIdRef.current = sourceId ?? null;
+  currentPlaybackUrlRef.current = playbackUrl ?? null;
+  currentTimeRef.current = currentTime;
+  currentDurationRef.current = duration;
+  isPlayingRef.current = isPlaying;
+  reportPlayingRef.current = reportPlaying;
+  reportCurrentTimeRef.current = reportCurrentTime;
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    return () => {
+      mountedRef.current = false;
+      refreshRequestGenerationRef.current += 1;
+    };
+  }, []);
+
+  useEffect(() => {
+    const unsubscribe = subscribeToAudioCommands((command) => {
+      if (
+        command.type !== "seek" ||
+        command.sourceId !== currentSourceIdRef.current
+      ) {
+        return;
+      }
+
+      const audio = audioRef.current;
+      if (!audio) return;
+
+      const upperBound =
+        Number.isFinite(audio.duration) && audio.duration > 0
+          ? audio.duration
+          : Math.max(0, currentDurationRef.current);
+      const nextTime =
+        upperBound > 0
+          ? Math.min(upperBound, Math.max(0, command.seconds))
+          : Math.max(0, command.seconds);
+      audio.currentTime = nextTime;
+      currentTimeRef.current = nextTime;
+      reportCurrentTimeRef.current(nextTime);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    const previousSource = previousSourceRef.current;
+    const isSameSourceRefresh = Boolean(
+      sourceId &&
+        playbackUrl &&
+        previousSource &&
+        previousSource.sourceId === sourceId &&
+        previousSource.playbackUrl !== playbackUrl,
+    );
+
+    previousSourceRef.current =
+      sourceId && playbackUrl ? { sourceId, playbackUrl } : null;
+
+    if (isSameSourceRefresh && sourceId && playbackUrl) {
+      const refreshRestore = {
+        sourceId,
+        sourceGeneration: sourceGenerationRef.current + 1,
+        currentTime: Math.max(0, currentTimeRef.current),
+        shouldPlay: isPlayingRef.current,
+      };
+
+      sourceGenerationRef.current = refreshRestore.sourceGeneration;
+      transportGenerationRef.current += 1;
+      allowedPlayGenerationRef.current = null;
+      activePlaybackUrlRef.current = playbackUrl;
+      refreshRestoreRef.current = refreshRestore;
+      audio.pause();
+      audio.src = playbackUrl;
+      audio.load();
+      setPlaybackError(null);
+      return;
+    }
+
     sourceGenerationRef.current += 1;
     transportGenerationRef.current += 1;
     allowedPlayGenerationRef.current = null;
+    refreshRestoreRef.current = null;
     activePlaybackUrlRef.current = playbackUrl ?? null;
 
     audio.pause();
@@ -58,6 +170,8 @@ export function GlobalPlayer() {
     reportPlaying(false);
 
     if (!hasSource || !playbackUrl) {
+      currentTimeRef.current = 0;
+      currentDurationRef.current = 0;
       reportCurrentTime(0);
       reportDuration(0);
       return;
@@ -79,6 +193,93 @@ export function GlobalPlayer() {
     if (audio) audio.volume = volume;
   }, [volume]);
 
+  useEffect(() => {
+    const expiry = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+    if (!sourceId || !playbackUrl || !Number.isFinite(expiry)) return;
+
+    const capturedSourceId = sourceId;
+    const capturedPlaybackUrl = playbackUrl;
+    const requestGeneration = refreshRequestGenerationRef.current + 1;
+    refreshRequestGenerationRef.current = requestGeneration;
+    const delay = Math.max(
+      MIN_REFRESH_DELAY_MS,
+      expiry - Date.now() - PLAYBACK_REFRESH_LEAD_MS,
+    );
+
+    const timeout = window.setTimeout(() => {
+      void (async () => {
+        const isCurrentRefreshRequest = () =>
+          mountedRef.current &&
+          refreshRequestGenerationRef.current === requestGeneration &&
+          currentSourceIdRef.current === capturedSourceId &&
+          currentPlaybackUrlRef.current === capturedPlaybackUrl;
+
+        const failRefresh = () => {
+          if (!isCurrentRefreshRequest()) return;
+
+          transportGenerationRef.current += 1;
+          allowedPlayGenerationRef.current = null;
+          audioRef.current?.pause();
+          reportPlayingRef.current(false);
+          setPlaybackError(refreshPlaybackError);
+        };
+
+        try {
+          const response = await fetch("/api/studio/playback/refresh", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ versionId: capturedSourceId }),
+          });
+
+          if (!response.ok) {
+            failRefresh();
+            return;
+          }
+
+          const responsePayload: unknown = await response.json();
+          const payload: Record<string, unknown> | null =
+            responsePayload &&
+            typeof responsePayload === "object" &&
+            !Array.isArray(responsePayload)
+              ? responsePayload
+              : null;
+          const responseExpiresAt =
+            payload && typeof payload.expiresAt === "string"
+              ? Date.parse(payload.expiresAt)
+              : Number.NaN;
+          if (
+            !payload ||
+            typeof payload.playbackUrl !== "string" ||
+            !payload.playbackUrl ||
+            typeof payload.expiresAt !== "string" ||
+            !Number.isFinite(responseExpiresAt) ||
+            responseExpiresAt <= Date.now()
+          ) {
+            failRefresh();
+            return;
+          }
+
+          if (!isCurrentRefreshRequest()) return;
+
+          refreshSource({
+            sourceId: capturedSourceId,
+            playbackUrl: payload.playbackUrl,
+            expiresAt: payload.expiresAt,
+          });
+        } catch {
+          failRefresh();
+        }
+      })();
+    }, delay);
+
+    return () => {
+      window.clearTimeout(timeout);
+      if (refreshRequestGenerationRef.current === requestGeneration) {
+        refreshRequestGenerationRef.current += 1;
+      }
+    };
+  }, [expiresAt, playbackUrl, refreshSource, sourceId]);
+
   function eventBelongsToCurrentSource(
     event: SyntheticEvent<HTMLAudioElement>,
   ) {
@@ -88,19 +289,12 @@ export function GlobalPlayer() {
     return eventUrl.endsWith(activeUrl) || eventUrl === activeUrl;
   }
 
-  async function handleTransport() {
-    const audio = audioRef.current;
-    if (!audio || !source) return;
+  async function requestPlayback(
+    audio: HTMLAudioElement,
+    sourceGeneration: number,
+  ) {
+    if (sourceGenerationRef.current !== sourceGeneration) return;
 
-    if (!audio.paused || isPlaying) {
-      transportGenerationRef.current += 1;
-      allowedPlayGenerationRef.current = null;
-      audio.pause();
-      reportPlaying(false);
-      return;
-    }
-
-    const sourceGeneration = sourceGenerationRef.current;
     const transportGeneration = transportGenerationRef.current + 1;
     transportGenerationRef.current = transportGeneration;
     allowedPlayGenerationRef.current = transportGeneration;
@@ -116,18 +310,68 @@ export function GlobalPlayer() {
 
       if (isCurrentRequest) {
         allowedPlayGenerationRef.current = null;
-        reportPlaying(false);
+        reportPlayingRef.current(false);
         setPlaybackError("Unable to play this track.");
       }
     }
   }
 
+  function handleLoadedMetadata(event: SyntheticEvent<HTMLAudioElement>) {
+    if (!eventBelongsToCurrentSource(event)) return;
+
+    const audio = event.currentTarget;
+    const refreshRestore = refreshRestoreRef.current;
+    if (
+      refreshRestore &&
+      refreshRestore.sourceId === currentSourceIdRef.current &&
+      refreshRestore.sourceGeneration === sourceGenerationRef.current
+    ) {
+      const upperBound =
+        Number.isFinite(audio.duration) && audio.duration > 0
+          ? audio.duration
+          : Math.max(0, currentDurationRef.current);
+      const nextTime =
+        upperBound > 0
+          ? Math.min(upperBound, refreshRestore.currentTime)
+          : refreshRestore.currentTime;
+
+      audio.currentTime = nextTime;
+      currentTimeRef.current = nextTime;
+      refreshRestoreRef.current = null;
+      reportCurrentTime(nextTime);
+
+      if (refreshRestore.shouldPlay) {
+        void requestPlayback(audio, refreshRestore.sourceGeneration);
+      }
+    }
+
+    currentDurationRef.current = audio.duration;
+    reportDuration(audio.duration);
+  }
+
+  function handleTransport() {
+    const audio = audioRef.current;
+    if (!audio || !source) return;
+
+    if (!audio.paused || isPlaying) {
+      transportGenerationRef.current += 1;
+      allowedPlayGenerationRef.current = null;
+      audio.pause();
+      reportPlaying(false);
+      return;
+    }
+
+    void requestPlayback(audio, sourceGenerationRef.current);
+  }
+
   function handlePlay(event: SyntheticEvent<HTMLAudioElement>) {
+    if (!eventBelongsToCurrentSource(event)) return;
+
     const requestIsCurrent =
       allowedPlayGenerationRef.current !== null &&
       allowedPlayGenerationRef.current === transportGenerationRef.current;
 
-    if (!requestIsCurrent || !eventBelongsToCurrentSource(event)) {
+    if (!requestIsCurrent) {
       event.currentTarget.pause();
       reportPlaying(false);
       return;
@@ -138,9 +382,9 @@ export function GlobalPlayer() {
   }
 
   function handlePause(event: SyntheticEvent<HTMLAudioElement>) {
+    if (!eventBelongsToCurrentSource(event)) return;
     if (
-      activePlaybackUrlRef.current &&
-      !eventBelongsToCurrentSource(event)
+      refreshRestoreRef.current?.sourceGeneration === sourceGenerationRef.current
     ) {
       return;
     }
@@ -149,26 +393,34 @@ export function GlobalPlayer() {
 
   function handleDuration(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
+    currentDurationRef.current = event.currentTarget.duration;
     reportDuration(event.currentTarget.duration);
   }
 
   function handleTimeUpdate(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
+    currentTimeRef.current = event.currentTarget.currentTime;
     reportCurrentTime(event.currentTarget.currentTime);
   }
 
   function handleEnded(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
     allowedPlayGenerationRef.current = null;
+    currentTimeRef.current = event.currentTarget.duration;
     reportCurrentTime(event.currentTarget.duration);
     reportPlaying(false);
   }
 
   function handleMediaError(event: SyntheticEvent<HTMLAudioElement>) {
     if (!eventBelongsToCurrentSource(event)) return;
+    const wasRefreshing =
+      refreshRestoreRef.current?.sourceGeneration === sourceGenerationRef.current;
+    refreshRestoreRef.current = null;
     allowedPlayGenerationRef.current = null;
     reportPlaying(false);
-    setPlaybackError("Unable to play this track.");
+    setPlaybackError(
+      wasRefreshing ? refreshPlaybackError : "Unable to play this track.",
+    );
   }
 
   function handleSeek(event: ChangeEvent<HTMLInputElement>) {
@@ -179,6 +431,7 @@ export function GlobalPlayer() {
       ? Math.min(duration, Math.max(0, requestedTime))
       : 0;
     audio.currentTime = nextTime;
+    currentTimeRef.current = nextTime;
     reportCurrentTime(nextTime);
   }
 
@@ -204,7 +457,7 @@ export function GlobalPlayer() {
         ref={audioRef}
         data-testid="global-audio-element"
         preload="metadata"
-        onLoadedMetadata={handleDuration}
+        onLoadedMetadata={handleLoadedMetadata}
         onDurationChange={handleDuration}
         onTimeUpdate={handleTimeUpdate}
         onPlay={handlePlay}
