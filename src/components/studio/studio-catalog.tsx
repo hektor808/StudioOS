@@ -23,7 +23,7 @@ export function StudioCatalog({ result, filters }: StudioCatalogProps) {
   const hasFilters = Boolean(filters.query || filters.status);
 
   return (
-    <div className="studio-page-grid grid gap-6">
+    <div className="studio-page-grid">
       <section className="glass-panel p-5 sm:p-6" aria-labelledby="catalog-controls-heading">
         <div className="mb-5">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">

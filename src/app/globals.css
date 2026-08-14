@@ -223,6 +223,25 @@
 }
 
 @layer components {
+  .studio-page-grid {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .studio-detail-grid {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  @media (min-width: 1024px) {
+    .studio-detail-grid {
+      grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.85fr);
+      align-items: start;
+    }
+  }
+}
+
+@layer components {
   .waveform-field {
     position: relative;
     min-height: 8rem;

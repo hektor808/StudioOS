@@ -49,7 +49,7 @@ export function StudioDetailClient({
   };
 
   return (
-    <div className="studio-detail-grid grid gap-6">
+    <div className="studio-detail-grid">
       <nav aria-label="Breadcrumb">
         <Link
           href="/studio"

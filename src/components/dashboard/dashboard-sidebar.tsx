@@ -1,22 +1,47 @@
+"use client";
+
 import {
   CalendarBlank,
   ImagesSquare,
   Sparkle,
   SquaresFour,
   Waveform,
-} from "@phosphor-icons/react/dist/ssr";
+} from "@phosphor-icons/react";
+import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
+const activeDestinations = [
+  {
+    href: "/",
+    label: "Dashboard",
+    Icon: SquaresFour,
+    matches: (pathname: string) => pathname === "/",
+  },
+  {
+    href: "/studio",
+    label: "Studio",
+    Icon: Waveform,
+    matches: (pathname: string) =>
+      pathname === "/studio" || pathname.startsWith("/studio/"),
+  },
+] as const;
+
 const futureDestinations = [
-  { label: "Studio", Icon: Waveform },
   { label: "Operations", Icon: CalendarBlank },
   { label: "Content", Icon: ImagesSquare },
   { label: "VEO AI", Icon: Sparkle },
 ];
 
 export function DashboardSidebar() {
+  const pathname = usePathname();
+  const shouldReduceMotion = useReducedMotion();
+  const indicatorTransition = shouldReduceMotion
+    ? { duration: 0 }
+    : { type: "spring" as const, stiffness: 400, damping: 30 };
+
   return (
     <aside className="glass-panel fixed inset-y-8 left-8 z-30 hidden w-[260px] flex-col p-5 lg:flex">
       <div>
@@ -27,18 +52,34 @@ export function DashboardSidebar() {
       </div>
 
       <nav aria-label="Primary navigation" className="mt-10 grid gap-2">
-        <Link
-          href="/"
-          aria-current="page"
-          className="relative flex min-h-11 items-center gap-3 rounded-2xl border border-primary-container/40 bg-primary-container px-4 text-sm font-medium text-primary-container-foreground shadow-[0_0_24px_hsl(var(--primary-container)/0.2)] outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          <span
-            aria-hidden="true"
-            className="absolute left-0 h-4 w-1 rounded-full bg-primary"
-          />
-          <SquaresFour aria-hidden="true" size={19} weight="duotone" />
-          Dashboard
-        </Link>
+        {activeDestinations.map(({ href, label, Icon, matches }) => {
+          const isActive = matches(pathname);
+
+          return (
+            <Link
+              key={href}
+              href={href}
+              prefetch={false}
+              aria-current={isActive ? "page" : undefined}
+              className={`relative flex min-h-11 items-center gap-3 rounded-2xl px-4 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
+                isActive
+                  ? "border border-primary-container/40 bg-primary-container text-primary-container-foreground shadow-[0_0_24px_hsl(var(--primary-container)/0.2)]"
+                  : "text-muted-foreground hover:bg-background/40 hover:text-foreground"
+              }`}
+            >
+              {isActive ? (
+                <motion.span
+                  layoutId="dashboard-active-indicator"
+                  aria-hidden="true"
+                  className="absolute left-0 h-4 w-1 rounded-full bg-primary"
+                  transition={indicatorTransition}
+                />
+              ) : null}
+              <Icon aria-hidden="true" size={19} weight="duotone" />
+              {label}
+            </Link>
+          );
+        })}
 
         {futureDestinations.map(({ label, Icon }) => (
           <div

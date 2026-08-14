@@ -4,9 +4,9 @@ import {
   Sparkle,
   Waveform,
 } from "@phosphor-icons/react/dist/ssr";
+import Link from "next/link";
 
-const modules = [
-  { label: "Studio", Icon: Waveform },
+const futureModules = [
   { label: "Operations", Icon: CalendarBlank },
   { label: "Content", Icon: ImagesSquare },
   { label: "VEO AI", Icon: Sparkle },
@@ -26,14 +26,30 @@ export function DashboardHome() {
           Studio command center
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-          The private VEO workspace is ready. Studio catalog, operations,
-          content, and VEO AI modules will come online in their dedicated
-          phases.
+          The private VEO workspace is ready. The Studio catalog is now
+          connected; Operations, Content, and VEO AI modules will come online
+          in their dedicated phases.
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        {modules.map(({ label, Icon }) => (
+        <Link
+          href="/studio"
+          prefetch={false}
+          className="rounded-2xl border border-border bg-card/55 p-5 outline-none transition-colors hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
+        >
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container/20 text-primary">
+              <Waveform aria-hidden="true" size={20} weight="duotone" />
+            </span>
+            <h2 className="font-heading text-lg font-medium">Studio</h2>
+            <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+              Open Studio
+            </span>
+          </div>
+        </Link>
+
+        {futureModules.map(({ label, Icon }) => (
           <article
             key={label}
             className="rounded-2xl border border-border bg-card/55 p-5 backdrop-blur-xl"
