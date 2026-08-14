@@ -11,6 +11,7 @@ import type { StudioComment } from "@/lib/studio/types";
 const dateFormatter = new Intl.DateTimeFormat("en", {
   dateStyle: "medium",
   timeStyle: "short",
+  timeZone: "UTC",
 });
 
 export type CommentListProps = {

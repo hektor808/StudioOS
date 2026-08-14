@@ -29,7 +29,7 @@ export function CommentComposer({ versionId, marker }: CommentComposerProps) {
       formRef.current?.reset();
       router.refresh();
     }
-  }, [router, state.status]);
+  }, [router, state]);
 
   return (
     <section aria-labelledby="comment-composer-heading">
