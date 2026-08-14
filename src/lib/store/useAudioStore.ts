@@ -7,6 +7,7 @@ export type PlaybackSource = {
   subtitle?: string;
   artworkUrl?: string;
   playbackUrl: string;
+  expiresAt?: string;
 };
 
 export type AudioState = {
@@ -19,6 +20,9 @@ export type AudioState = {
 
 export type AudioActions = {
   selectSource: (source: PlaybackSource) => void;
+  refreshSource: (
+    source: Pick<PlaybackSource, "sourceId" | "playbackUrl" | "expiresAt">,
+  ) => void;
   clearSource: () => void;
   setVolume: (volume: number) => void;
   reportPlaying: (isPlaying: boolean) => void;
@@ -55,11 +59,22 @@ export const useAudioStore = create<AudioStore>((set) => ({
       return preservesTelemetry
         ? { source }
         : {
-            source,
-            isPlaying: false,
-            currentTime: 0,
-            duration: 0,
-          };
+          source,
+          isPlaying: false,
+          currentTime: 0,
+          duration: 0,
+        };
+    }),
+  refreshSource: (source) =>
+    set((state) => {
+      if (state.source?.sourceId !== source.sourceId) return {};
+      return {
+        source: {
+          ...state.source,
+          playbackUrl: source.playbackUrl,
+          expiresAt: source.expiresAt,
+        },
+      };
     }),
   clearSource: () =>
     set((state) => ({
