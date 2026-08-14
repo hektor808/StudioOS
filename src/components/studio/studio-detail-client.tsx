@@ -49,7 +49,7 @@ export function StudioDetailClient({
   };
 
   return (
-    <div className="studio-detail-grid">
+    <div className="grid gap-5">
       <nav aria-label="Breadcrumb">
         <Link
           href="/studio"
@@ -85,54 +85,65 @@ export function StudioDetailClient({
         </div>
       </header>
 
-      <section className="glass-panel p-5 sm:p-6">
-        <VersionSelector
-          versions={versions}
-          selectedVersionId={selectedVersionId}
-          onSelectVersion={handleSelectVersion}
-          onPlaybackSource={handlePlaybackSource}
-        />
-      </section>
-
-      <section className="glass-panel grid gap-5 p-5 sm:p-6" aria-labelledby="review-heading">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
-            Timestamp review
-          </p>
-          <h2 id="review-heading" className="mt-2 font-heading text-xl font-semibold">
-            Waveform and comments
-          </h2>
-        </div>
-
-        {activeSource?.sourceId === selectedVersionId && selectedVersion ? (
-          <WaveformDisplay
-            sourceId={activeSource.sourceId}
-            playbackUrl={activeSource.playbackUrl}
-            durationSeconds={selectedVersion.durationSeconds}
-            currentTime={currentTime}
-            selectedMarker={selectedMarker}
-            onMarkerChange={setSelectedMarker}
-            onSeekRequest={(seconds) =>
-              requestAudioSeek(activeSource.sourceId, seconds)
-            }
+      <div className="studio-detail-grid">
+        <section className="studio-detail-console glass-panel grid gap-5 p-5 sm:p-6">
+          <VersionSelector
+            versions={versions}
+            selectedVersionId={selectedVersionId}
+            onSelectVersion={handleSelectVersion}
+            onPlaybackSource={handlePlaybackSource}
           />
-        ) : selectedVersion ? (
-          <p className="rounded-xl border border-border bg-background/35 p-4 text-sm text-muted-foreground">
-            Start the selected version in the global player to load its waveform.
-          </p>
-        ) : null}
+          <CommentComposer
+            versionId={selectedVersionId}
+            marker={selectedMarker}
+          />
+          <CommentList
+            comments={comments}
+            activeSourceId={activeSource?.sourceId ?? null}
+            onSeekComment={(versionId, seconds) => {
+              if (activeSource?.sourceId === versionId) {
+                requestAudioSeek(versionId, seconds);
+              }
+            }}
+          />
+        </section>
 
-        <CommentComposer versionId={selectedVersionId} marker={selectedMarker} />
-        <CommentList
-          comments={comments}
-          activeSourceId={activeSource?.sourceId ?? null}
-          onSeekComment={(versionId, seconds) => {
-            if (activeSource?.sourceId === versionId) {
-              requestAudioSeek(versionId, seconds);
-            }
-          }}
-        />
-      </section>
+        <section
+          className="studio-detail-review glass-panel grid gap-5 p-5 sm:p-6"
+          aria-labelledby="review-heading"
+        >
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-primary">
+              Timestamp review
+            </p>
+            <h2
+              id="review-heading"
+              className="mt-2 font-heading text-xl font-semibold"
+            >
+              Waveform
+            </h2>
+          </div>
+
+          {activeSource?.sourceId === selectedVersionId && selectedVersion ? (
+            <WaveformDisplay
+              sourceId={activeSource.sourceId}
+              playbackUrl={activeSource.playbackUrl}
+              durationSeconds={selectedVersion.durationSeconds}
+              currentTime={currentTime}
+              selectedMarker={selectedMarker}
+              onMarkerChange={setSelectedMarker}
+              onSeekRequest={(seconds) =>
+                requestAudioSeek(activeSource.sourceId, seconds)
+              }
+            />
+          ) : selectedVersion ? (
+            <p className="rounded-xl border border-border bg-background/35 p-4 text-sm text-muted-foreground">
+              Start the selected version in the global player to load its
+              waveform.
+            </p>
+          ) : null}
+        </section>
+      </div>
     </div>
   );
 }

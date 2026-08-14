@@ -235,8 +235,17 @@
 
   @media (min-width: 1024px) {
     .studio-detail-grid {
+      grid-template-areas: "review console";
       grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.85fr);
       align-items: start;
+    }
+
+    .studio-detail-review {
+      grid-area: review;
+    }
+
+    .studio-detail-console {
+      grid-area: console;
     }
   }
 }
