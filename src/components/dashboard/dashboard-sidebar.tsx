@@ -27,10 +27,15 @@ const activeDestinations = [
     matches: (pathname: string) =>
       pathname === "/studio" || pathname.startsWith("/studio/"),
   },
+  {
+    href: "/operations",
+    label: "Operations",
+    Icon: CalendarBlank,
+    matches: (pathname: string) => pathname === "/operations",
+  },
 ] as const;
 
 const futureDestinations = [
-  { label: "Operations", Icon: CalendarBlank },
   { label: "Content", Icon: ImagesSquare },
   { label: "VEO AI", Icon: Sparkle },
 ];

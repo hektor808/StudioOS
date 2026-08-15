@@ -10,7 +10,8 @@ export function MobileDashboardHeader() {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
   const isStudio = pathname === "/studio" || pathname.startsWith("/studio/");
-  const currentModule = isStudio ? "Studio" : "Dashboard";
+  const isOperations = pathname === "/operations";
+  const currentModule = isOperations ? "Operations" : isStudio ? "Studio" : "Dashboard";
   const selectionTransition = shouldReduceMotion
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 400, damping: 30 };
@@ -27,10 +28,11 @@ export function MobileDashboardHeader() {
         <ThemeToggle />
       </div>
 
-      <nav aria-label="Primary navigation" className="mt-3 grid grid-cols-2 gap-2">
+      <nav aria-label="Primary navigation" className="mt-3 grid grid-cols-3 gap-2">
         {[
           { href: "/", label: "Dashboard", isActive: pathname === "/" },
           { href: "/studio", label: "Studio", isActive: isStudio },
+          { href: "/operations", label: "Operations", isActive: isOperations },
         ].map(({ href, label, isActive }) => (
           <Link
             key={href}
