@@ -7,6 +7,7 @@ import type {
   StudioCatalogResult,
   StudioComment,
   StudioCreator,
+  StudioFile,
   StudioTrackDetail,
   StudioTrackSummary,
   StudioTrackVersion,
@@ -186,7 +187,7 @@ export async function getStudioTrackVersions(
     const { data, error } = await supabase
       .from("track_versions")
       .select(
-        "id,track_id,version_num,status,original_filename,duration_seconds,created_at,created_by,users!track_versions_created_by_fkey(full_name,avatar_url)",
+        "id,track_id,version_num,status,original_filename,mime_type,size_bytes,storage_provider,duration_seconds,created_at,created_by,users!track_versions_created_by_fkey(full_name,avatar_url)",
       )
       .eq("track_id", trackId)
       .order("version_num", { ascending: false });
@@ -201,12 +202,57 @@ export async function getStudioTrackVersions(
       versionNumber: row.version_num,
       status: row.status,
       originalFilename: row.original_filename,
+      mimeType: row.mime_type,
+      sizeBytes: row.size_bytes,
       durationSeconds: row.duration_seconds,
       createdAt: row.created_at,
       createdBy: mapCreator(row.created_by, row.users),
+      storageAvailability:
+        row.storage_provider === "supabase" ? "playback" : "production",
     }));
   } catch (error) {
     handleQueryFailure(error);
+  }
+}
+
+export async function getStudioTrackFiles(
+  trackId: string,
+): Promise<StudioFile[]> {
+  if (!versionIdSchema.safeParse(trackId).success) {
+    return [];
+  }
+
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase
+      .from("files")
+      .select(
+        "id,track_id,type,original_filename,mime_type,size_bytes,created_at,uploaded_by,users!files_uploaded_by_fkey(id,full_name,avatar_url)",
+      )
+      .eq("track_id", trackId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      throw new Error("Studio files are unavailable.");
+    }
+
+    return data.map((row) => ({
+      id: row.id,
+      trackId: row.track_id,
+      fileType: row.type,
+      originalFilename: row.original_filename,
+      mimeType: row.mime_type,
+      sizeBytes: row.size_bytes,
+      createdAt: row.created_at,
+      uploadedBy: mapCreator(row.uploaded_by, row.users),
+      storageAvailability: "production",
+    }));
+  } catch (error) {
+    if (error instanceof SupabasePublicEnvironmentError) {
+      throw error;
+    }
+
+    throw new Error("Studio files are unavailable.");
   }
 }
 

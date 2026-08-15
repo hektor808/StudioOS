@@ -4,6 +4,8 @@ import { Inter, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/components/providers/theme-provider";
 
 import "./globals.css";
+import "@uppy/core/css/style.min.css";
+import "@uppy/dashboard/css/style.min.css";
 
 const inter = Inter({
   subsets: ["latin"],
