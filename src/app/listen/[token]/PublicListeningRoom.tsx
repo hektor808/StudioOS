@@ -310,13 +310,13 @@ export function PublicListeningRoom({
   }
 
   useEffect(() => {
+    const audio = audioRef.current;
     return () => {
       requestGenerationRef.current += 1;
       if (refreshTimerRef.current !== null) {
         window.clearTimeout(refreshTimerRef.current);
         refreshTimerRef.current = null;
       }
-      const audio = audioRef.current;
       if (audio) {
         audio.pause();
         audio.removeAttribute("src");

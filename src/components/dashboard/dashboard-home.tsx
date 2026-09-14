@@ -6,28 +6,69 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
-const activeModules = [
-  {
-    href: "/studio",
-    label: "Studio",
-    linkLabel: "Open Studio",
-    Icon: Waveform,
-  },
-  {
-    href: "/operations",
-    label: "Operations",
-    linkLabel: "Open Operations",
-    Icon: CalendarBlank,
-  },
-  {
-    href: "/content",
-    label: "Content",
-    linkLabel: "Open Content",
-    Icon: ImagesSquare,
-  },
-] as const;
+import type { DashboardSummaryResult } from "@/lib/dashboard/queries";
 
-export function DashboardHome() {
+type DashboardHomeProps = {
+  summaryResult?: DashboardSummaryResult;
+};
+
+export function DashboardHome({
+  summaryResult = { state: "unavailable" },
+}: DashboardHomeProps) {
+  const ready = summaryResult.state === "ready" ? summaryResult.summary : null;
+
+  const modules = [
+    {
+      href: "/studio",
+      label: "Studio",
+      linkLabel: "Open Studio",
+      Icon: Waveform,
+      counts: ready
+        ? [
+            ready.trackCount === 0
+              ? "No tracks yet"
+              : `${ready.trackCount} tracks`,
+            ready.unresolvedCommentCount === 0
+              ? "No unresolved comments"
+              : `${ready.unresolvedCommentCount} unresolved comments`,
+          ]
+        : [],
+    },
+    {
+      href: "/operations",
+      label: "Operations",
+      linkLabel: "Open Operations",
+      Icon: CalendarBlank,
+      counts: ready
+        ? [
+            ready.upcomingActionCount === 0
+              ? "No upcoming actions"
+              : `${ready.upcomingActionCount} upcoming actions`,
+          ]
+        : [],
+    },
+    {
+      href: "/content",
+      label: "Content",
+      linkLabel: "Open Content",
+      Icon: ImagesSquare,
+      counts: ready
+        ? [
+            ready.contentIdeaCount === 0
+              ? "No content ideas"
+              : `${ready.contentIdeaCount} content ideas`,
+          ]
+        : [],
+    },
+    {
+      href: "/veo-ai",
+      label: "VEO AI",
+      linkLabel: "Open VEO AI",
+      Icon: Sparkle,
+      counts: [],
+    },
+  ] as const;
+
   return (
     <section aria-labelledby="dashboard-heading" className="grid gap-6">
       <div className="glass-panel overflow-hidden p-6 sm:p-8">
@@ -41,13 +82,18 @@ export function DashboardHome() {
           Studio command center
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-          The private VEO workspace is ready. Studio, Operations, and Content
-          are connected; VEO AI will come online in its dedicated phase.
+          The private VEO workspace is ready. Studio, Operations, Content, and
+          VEO AI are connected.
         </p>
+        {summaryResult.state === "unavailable" ? (
+          <p role="status" className="mt-4 text-sm text-muted-foreground">
+            Dashboard data is temporarily unavailable.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        {activeModules.map(({ href, label, linkLabel, Icon }) => (
+        {modules.map(({ href, label, linkLabel, Icon, counts }) => (
           <Link
             key={href}
             href={href}
@@ -63,20 +109,15 @@ export function DashboardHome() {
                 {linkLabel}
               </span>
             </div>
+            {counts.length > 0 ? (
+              <ul className="mt-3 grid gap-1 text-sm text-muted-foreground">
+                {counts.map((count) => (
+                  <li key={count}>{count}</li>
+                ))}
+              </ul>
+            ) : null}
           </Link>
         ))}
-
-        <article className="rounded-2xl border border-border bg-card/55 p-5 backdrop-blur-xl">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container/20 text-primary">
-              <Sparkle aria-hidden="true" size={20} weight="duotone" />
-            </span>
-            <h2 className="font-heading text-lg font-medium">VEO AI</h2>
-            <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-              Coming soon
-            </span>
-          </div>
-        </article>
       </div>
 
       <article className="glass-panel p-6 sm:p-8">
