@@ -5,6 +5,7 @@ import { SupabasePublicEnvironmentError } from "@/lib/supabase/env";
 import {
   getStudioComments,
   getStudioTrackDetail,
+  getStudioTrackFiles,
   getStudioTrackVersions,
 } from "@/lib/studio/queries";
 
@@ -19,11 +20,19 @@ export default async function StudioTrackPage({
     const track = await getStudioTrackDetail(params.trackId);
     if (!track) notFound();
 
-    const versions = await getStudioTrackVersions(track.id);
+    const [versions, files] = await Promise.all([
+      getStudioTrackVersions(track.id),
+      getStudioTrackFiles(track.id),
+    ]);
     const comments = await getStudioComments(versions.map((version) => version.id));
 
     return (
-      <StudioDetailClient track={track} versions={versions} comments={comments} />
+      <StudioDetailClient
+        track={track}
+        versions={versions}
+        comments={comments}
+        files={files}
+      />
     );
   } catch (error) {
     if (error instanceof SupabasePublicEnvironmentError) {

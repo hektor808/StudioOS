@@ -6,11 +6,26 @@ import {
 } from "@phosphor-icons/react/dist/ssr";
 import Link from "next/link";
 
-const futureModules = [
-  { label: "Operations", Icon: CalendarBlank },
-  { label: "Content", Icon: ImagesSquare },
-  { label: "VEO AI", Icon: Sparkle },
-];
+const activeModules = [
+  {
+    href: "/studio",
+    label: "Studio",
+    linkLabel: "Open Studio",
+    Icon: Waveform,
+  },
+  {
+    href: "/operations",
+    label: "Operations",
+    linkLabel: "Open Operations",
+    Icon: CalendarBlank,
+  },
+  {
+    href: "/content",
+    label: "Content",
+    linkLabel: "Open Content",
+    Icon: ImagesSquare,
+  },
+] as const;
 
 export function DashboardHome() {
   return (
@@ -26,53 +41,51 @@ export function DashboardHome() {
           Studio command center
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-6 text-muted-foreground sm:text-base">
-          The private VEO workspace is ready. The Studio catalog is now
-          connected; Operations, Content, and VEO AI modules will come online
-          in their dedicated phases.
+          The private VEO workspace is ready. Studio, Operations, and Content
+          are connected; VEO AI will come online in its dedicated phase.
         </p>
       </div>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <Link
-          href="/studio"
-          prefetch={false}
-          className="rounded-2xl border border-border bg-card/55 p-5 outline-none transition-colors hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
-        >
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container/20 text-primary">
-              <Waveform aria-hidden="true" size={20} weight="duotone" />
-            </span>
-            <h2 className="font-heading text-lg font-medium">Studio</h2>
-            <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
-              Open Studio
-            </span>
-          </div>
-        </Link>
-
-        {futureModules.map(({ label, Icon }) => (
-          <article
-            key={label}
-            className="rounded-2xl border border-border bg-card/55 p-5 backdrop-blur-xl"
+        {activeModules.map(({ href, label, linkLabel, Icon }) => (
+          <Link
+            key={href}
+            href={href}
+            prefetch={false}
+            className="rounded-2xl border border-border bg-card/55 p-5 outline-none transition-colors hover:border-primary/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
           >
             <div className="flex items-center gap-3">
               <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container/20 text-primary">
                 <Icon aria-hidden="true" size={20} weight="duotone" />
               </span>
               <h2 className="font-heading text-lg font-medium">{label}</h2>
-              <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
-                Coming soon
+              <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-primary">
+                {linkLabel}
               </span>
             </div>
-          </article>
+          </Link>
         ))}
+
+        <article className="rounded-2xl border border-border bg-card/55 p-5 backdrop-blur-xl">
+          <div className="flex items-center gap-3">
+            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary-container/20 text-primary">
+              <Sparkle aria-hidden="true" size={20} weight="duotone" />
+            </span>
+            <h2 className="font-heading text-lg font-medium">VEO AI</h2>
+            <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em] text-muted-foreground">
+              Coming soon
+            </span>
+          </div>
+        </article>
       </div>
 
       <article className="glass-panel p-6 sm:p-8">
         <h2 className="font-heading text-xl font-medium">
-          Listening layer ready
+          Studio catalog connected
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
-          Tracks will appear here when the Studio catalog is connected.
+          Tracks, versions, and production files live in Studio. The player
+          dock stays mounted across every module.
         </p>
       </article>
     </section>

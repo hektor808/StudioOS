@@ -1,16 +1,53 @@
 "use client";
 
+import {
+  CalendarBlank,
+  ImagesSquare,
+  SquaresFour,
+  Waveform,
+} from "@phosphor-icons/react";
 import { motion, useReducedMotion } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { ThemeToggle } from "@/components/theme/theme-toggle";
 
+const destinations = [
+  {
+    href: "/",
+    label: "Dashboard",
+    Icon: SquaresFour,
+    matches: (pathname: string) => pathname === "/",
+  },
+  {
+    href: "/studio",
+    label: "Studio",
+    Icon: Waveform,
+    matches: (pathname: string) =>
+      pathname === "/studio" || pathname.startsWith("/studio/"),
+  },
+  {
+    href: "/operations",
+    label: "Operations",
+    Icon: CalendarBlank,
+    matches: (pathname: string) =>
+      pathname === "/operations" || pathname.startsWith("/operations/"),
+  },
+  {
+    href: "/content",
+    label: "Content",
+    Icon: ImagesSquare,
+    matches: (pathname: string) =>
+      pathname === "/content" || pathname.startsWith("/content/"),
+  },
+] as const;
+
 export function MobileDashboardHeader() {
   const pathname = usePathname();
   const shouldReduceMotion = useReducedMotion();
-  const isStudio = pathname === "/studio" || pathname.startsWith("/studio/");
-  const currentModule = isStudio ? "Studio" : "Dashboard";
+  const currentModule =
+    destinations.find((destination) => destination.matches(pathname))?.label ??
+    "Dashboard";
   const selectionTransition = shouldReduceMotion
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 400, damping: 30 };
@@ -27,33 +64,43 @@ export function MobileDashboardHeader() {
         <ThemeToggle />
       </div>
 
-      <nav aria-label="Primary navigation" className="mt-3 grid grid-cols-2 gap-2">
-        {[
-          { href: "/", label: "Dashboard", isActive: pathname === "/" },
-          { href: "/studio", label: "Studio", isActive: isStudio },
-        ].map(({ href, label, isActive }) => (
-          <Link
-            key={href}
-            href={href}
-            prefetch={false}
-            aria-current={isActive ? "page" : undefined}
-            className={`relative flex min-h-10 items-center justify-center rounded-xl px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
-              isActive
-                ? "bg-primary-container text-primary-container-foreground shadow-[0_0_18px_hsl(var(--primary-container)/0.16)]"
-                : "border border-border bg-background/35 text-muted-foreground"
-            }`}
-          >
-            {isActive ? (
-              <motion.span
-                layoutId="mobile-dashboard-active-selection"
+      <nav
+        aria-label="Primary navigation"
+        className="mt-3 flex gap-2 overflow-x-auto"
+      >
+        {destinations.map(({ href, label, Icon, matches }) => {
+          const isActive = matches(pathname);
+
+          return (
+            <Link
+              key={href}
+              href={href}
+              prefetch={false}
+              aria-current={isActive ? "page" : undefined}
+              className={`relative flex min-h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring motion-reduce:transition-none ${
+                isActive
+                  ? "bg-primary-container text-primary-container-foreground shadow-[0_0_18px_hsl(var(--primary-container)/0.16)]"
+                  : "border border-border bg-background/35 text-muted-foreground"
+              }`}
+            >
+              {isActive ? (
+                <motion.span
+                  layoutId="mobile-dashboard-active-selection"
+                  aria-hidden="true"
+                  className="absolute inset-0 rounded-xl border border-primary-container/40"
+                  transition={selectionTransition}
+                />
+              ) : null}
+              <Icon
                 aria-hidden="true"
-                className="absolute inset-0 rounded-xl border border-primary-container/40"
-                transition={selectionTransition}
+                size={15}
+                weight="duotone"
+                className="relative"
               />
-            ) : null}
-            <span className="relative">{label}</span>
-          </Link>
-        ))}
+              <span className="relative">{label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </header>
   );

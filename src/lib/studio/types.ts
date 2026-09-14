@@ -33,15 +33,32 @@ export type StudioTrackDetail = {
   createdBy: StudioCreator;
 };
 
+export type StorageAvailability = "playback" | "production";
+
 export type StudioTrackVersion = {
   id: string;
   trackId: string;
   versionNumber: number;
   status: TrackVersionStatus;
   originalFilename: string;
+  mimeType: string | null;
+  sizeBytes: number | null;
   durationSeconds: number | null;
   createdAt: string;
   createdBy: StudioCreator;
+  storageAvailability: StorageAvailability;
+};
+
+export type StudioFile = {
+  id: string;
+  trackId: string;
+  fileType: Database["public"]["Enums"]["file_type"];
+  originalFilename: string;
+  mimeType: string | null;
+  sizeBytes: number;
+  createdAt: string;
+  uploadedBy: StudioCreator;
+  storageAvailability: "production";
 };
 
 export type StudioComment = {

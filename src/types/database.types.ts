@@ -14,7 +14,7 @@ export type Database = {
           created_at: string;
           created_by: string;
           description: string;
-          event_date: string | null;
+          event_date: string;
           id: string;
           status: Database["public"]["Enums"]["action_status"];
           title: string;
@@ -24,7 +24,7 @@ export type Database = {
           created_at?: string;
           created_by: string;
           description?: string;
-          event_date?: string | null;
+          event_date: string;
           id?: string;
           status?: Database["public"]["Enums"]["action_status"];
           title: string;
@@ -34,7 +34,7 @@ export type Database = {
           created_at?: string;
           created_by?: string;
           description?: string;
-          event_date?: string | null;
+          event_date?: string;
           id?: string;
           status?: Database["public"]["Enums"]["action_status"];
           title?: string;
@@ -342,6 +342,31 @@ export type Database = {
       is_admin: {
         Args: Record<PropertyKey, never>;
         Returns: boolean;
+      };
+      register_r2_file: {
+        Args: {
+          p_bucket: string;
+          p_file_type: Database["public"]["Enums"]["file_type"];
+          p_mime_type: string;
+          p_object_key: string;
+          p_original_filename: string;
+          p_size_bytes: number;
+          p_track_id: string;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["files"]["Row"];
+      };
+      register_r2_track_version: {
+        Args: {
+          p_bucket: string;
+          p_mime_type: string;
+          p_object_key: string;
+          p_original_filename: string;
+          p_size_bytes: number;
+          p_track_id: string;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["track_versions"]["Row"];
       };
     };
     Enums: {
