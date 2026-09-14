@@ -31,6 +31,12 @@
 - Seçilen: B
 - Neden: Resmi mekanizma zaten vault yapısını ve shim'i üretiyor; `.claude/settings.json` hook'ları Claude Code'a geçilirse de çalışır. voe-ai'nin repo-seviyesi notes/backlog/decisions disiplini üstüne eklendi.
 
+### [Faz 4 / 2026-09-15] — `@uppy/dashboard` direct dependency
+- Seçenekler: A) Direct dep olarak tut B) Kaldır, CSS'i transitive dep'e güven C) CSS'i başka yoldan import et
+- Trade-off: `layout.tsx`'teki `@uppy/dashboard/css/style.min.css` importu paketin resolve edilebilir olmasını ister; transitive dep'e güvenmek kırılgan (npm hoisting değişirse import kırılır). Plan "add only AWS SDK" diyor ama CSS importu planın kendi file map'inde — dep onun gereği.
+- Seçilen: A (önceki oturumun aldığı karar onaylandı)
+- Neden: QA audit flag'i (Agent-3 madde 2): kurallara literal aykırı ama fonksiyonel olarak gerekli — plan notu olarak kayda geçirildi.
+
 ### [Faz 4 / 2026-09-15] — Paralel şerit modeli (5 agent)
 - Seçenekler: A) Sıralı tek-oturum implementasyon B) 4 yazma şeridi + 1 okuma şeridi, ana oturum entegrasyon C) Her şerit kendi branch'inde
 - Trade-off: A yavaş; C merge çakışması riski yüksek (paylaşılan lock/types dosyaları); B aynı çalışma ağacında disjoint alanlar — çakışmasız, tek kapı review.
