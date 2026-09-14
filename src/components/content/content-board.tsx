@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowSquareOut } from "@phosphor-icons/react";
+import { ArrowSquareOut } from "@phosphor-icons/react/dist/ssr";
 
 import { ContentIdeaForm } from "@/components/content/content-idea-form";
 import type {
