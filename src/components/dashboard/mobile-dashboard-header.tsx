@@ -3,6 +3,7 @@
 import {
   CalendarBlank,
   ImagesSquare,
+  Sparkle,
   SquaresFour,
   Waveform,
 } from "@phosphor-icons/react";
@@ -39,6 +40,13 @@ const destinations = [
     Icon: ImagesSquare,
     matches: (pathname: string) =>
       pathname === "/content" || pathname.startsWith("/content/"),
+  },
+  {
+    href: "/veo-ai",
+    label: "VEO AI",
+    Icon: Sparkle,
+    matches: (pathname: string) =>
+      pathname === "/veo-ai" || pathname.startsWith("/veo-ai/"),
   },
 ] as const;
 

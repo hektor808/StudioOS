@@ -41,9 +41,14 @@ const activeDestinations = [
     matches: (pathname: string) =>
       pathname === "/content" || pathname.startsWith("/content/"),
   },
+  {
+    href: "/veo-ai",
+    label: "VEO AI",
+    Icon: Sparkle,
+    matches: (pathname: string) =>
+      pathname === "/veo-ai" || pathname.startsWith("/veo-ai/"),
+  },
 ] as const;
-
-const futureDestinations = [{ label: "VEO AI", Icon: Sparkle }];
 
 export function DashboardSidebar() {
   const pathname = usePathname();
@@ -91,18 +96,6 @@ export function DashboardSidebar() {
           );
         })}
 
-        {futureDestinations.map(({ label, Icon }) => (
-          <div
-            key={label}
-            className="flex min-h-11 items-center gap-3 rounded-2xl px-4 text-sm text-muted-foreground"
-          >
-            <Icon aria-hidden="true" size={19} weight="duotone" />
-            <span>{label}</span>
-            <span className="ml-auto text-[10px] font-semibold uppercase tracking-[0.08em]">
-              Coming soon
-            </span>
-          </div>
-        ))}
       </nav>
 
       <div className="mt-auto flex items-center justify-between border-t border-border pt-5">

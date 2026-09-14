@@ -8,7 +8,7 @@ import { getSupabaseEnv } from "./env";
 // request-scoped RLS authorization has succeeded.
 class SupabaseServiceRoleEnvironmentError extends Error {
   constructor() {
-    super("Supabase service role environment is not configured.");
+    super("Supabase administrative access is not configured.");
     this.name = "SupabaseServiceRoleEnvironmentError";
   }
 }
@@ -31,6 +31,7 @@ export function createAdminClient(): SupabaseClient<Database> {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
+      detectSessionInUrl: false,
     },
   });
 }
