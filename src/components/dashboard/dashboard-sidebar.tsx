@@ -31,14 +31,19 @@ const activeDestinations = [
     href: "/operations",
     label: "Operations",
     Icon: CalendarBlank,
-    matches: (pathname: string) => pathname === "/operations",
+    matches: (pathname: string) =>
+      pathname === "/operations" || pathname.startsWith("/operations/"),
+  },
+  {
+    href: "/content",
+    label: "Content",
+    Icon: ImagesSquare,
+    matches: (pathname: string) =>
+      pathname === "/content" || pathname.startsWith("/content/"),
   },
 ] as const;
 
-const futureDestinations = [
-  { label: "Content", Icon: ImagesSquare },
-  { label: "VEO AI", Icon: Sparkle },
-];
+const futureDestinations = [{ label: "VEO AI", Icon: Sparkle }];
 
 export function DashboardSidebar() {
   const pathname = usePathname();

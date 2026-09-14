@@ -285,3 +285,54 @@
     }
   }
 }
+
+@layer components {
+  .uppy-Dashboard-inner {
+    border-color: hsl(var(--border));
+    border-radius: 1rem;
+    background: hsl(var(--card) / 0.6);
+  }
+
+  .uppy-Dashboard-AddFiles {
+    border-color: hsl(var(--border));
+    color: hsl(var(--foreground));
+  }
+
+  .operations-calendar-grid {
+    display: none;
+  }
+
+  .content-board-grid {
+    display: grid;
+    gap: 1rem;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  @media (min-width: 768px) {
+    .operations-calendar-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+    }
+
+    .content-board-grid {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .content-board-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .uppy-Dashboard-progressindicators,
+  .content-board-grid > *,
+  .operations-calendar-grid > * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
