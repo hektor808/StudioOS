@@ -1,0 +1,17 @@
+{
+  "context": { "fileName": ["GEMINI.md", "AGENTS.md"] },
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "name": "beyin-start", "type": "command", "command": "node .beyin/beyin.mjs hook session-start", "timeout": 15000 } ] }
+    ],
+    "BeforeAgent": [
+      { "hooks": [ { "name": "beyin-prompt", "type": "command", "command": "node .beyin/beyin.mjs hook prompt", "timeout": 5000 } ] }
+    ],
+    "PreCompress": [
+      { "hooks": [ { "name": "beyin-precompress", "type": "command", "command": "node .beyin/beyin.mjs hook pre-compact", "timeout": 10000 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "name": "beyin-end", "type": "command", "command": "node .beyin/beyin.mjs hook session-end", "timeout": 10000 } ] }
+    ]
+  }
+}

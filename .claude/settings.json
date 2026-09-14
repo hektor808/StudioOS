@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "node .beyin/beyin.mjs hook session-start", "timeout": 15 } ] }
+    ],
+    "UserPromptSubmit": [
+      { "hooks": [ { "type": "command", "command": "node .beyin/beyin.mjs hook prompt", "timeout": 5 } ] }
+    ],
+    "PreCompact": [
+      { "hooks": [ { "type": "command", "command": "node .beyin/beyin.mjs hook pre-compact", "timeout": 10 } ] }
+    ],
+    "SessionEnd": [
+      { "hooks": [ { "type": "command", "command": "node .beyin/beyin.mjs hook session-end", "timeout": 10 } ] }
+    ]
+  }
+}

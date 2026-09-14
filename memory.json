@@ -1,0 +1,18 @@
+{
+  "project": "studioos",
+  "version": "1.0.0",
+  "currentPhase": "Faz 4 — Uploads/Operations/Content (paralel şeritler aktif)",
+  "autonomyMode": "AFK-yarı (rutin onaylar otomatik; gerçek blokajlar backlog'a)",
+  "lastUpdated": "2026-09-15T00:00:00.000Z",
+  "activeGoals": [
+    "Faz 4 Task 1-9 tamamlanıp main'e entegre edilecek",
+    "Faz 5 (listening + VEO AI) Faz 4 sonrası başlayacak",
+    "Beyin mekanizması her oturumda çalışır halde tutulacak"
+  ],
+  "stats": {
+    "phasesCompleted": 4,
+    "totalPhases": 6,
+    "note": "Faz 0-3 tamam; Faz 4 aktif; Faz 5 sırada"
+  },
+  "contextSummary": "VEO OS: elite müzik prodüksiyon OS'i. Next.js 14 + Supabase + R2 + Uppy + wavesurfer + OpenAI. Beyin: resmi vault linki + repo hafıza dosyaları. Blokaj: R2 credential'ları."
+}
